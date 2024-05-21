@@ -1,0 +1,32 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-std=c2x",
+      "-O3",
+      "-o",
+      "test.o",
+      "test/test.c"
+    ],
+    "directory": "/home/ciccolella/code/clib",
+    "file": "/home/ciccolella/code/clib/test/test.c",
+    "output": "/home/ciccolella/code/clib/test.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-std=c2x",
+      "-O3",
+      "-o",
+      "testv.o",
+      "test/testv.c"
+    ],
+    "directory": "/home/ciccolella/code/clib",
+    "file": "/home/ciccolella/code/clib/test/testv.c",
+    "output": "/home/ciccolella/code/clib/testv.o"
+  }
+]
