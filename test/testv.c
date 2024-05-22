@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct {
   uint32_t x;
@@ -11,6 +12,7 @@ typedef struct {
 
 // CVEC_DECLAREP(structest *, structestp);
 
+#define vlit(type, value) &(type){(value)}
 int main(int argc, char *argv[]) {
   size_t s = 4;
   void *xx = malloc(10 * s);
@@ -47,7 +49,22 @@ int main(int argc, char *argv[]) {
   }
   puts("\n");
 
+  chash hx = chash_init(sizeof(uint32_t), 10);
+  uint32_t _20 = 20;
+  uint32_t _21 = 21;
+  chash_i(&hx, 20, &_20);
+  chash_i(&hx, 20, &_21);
+  chash_i(&hx, 21, &(uint32_t){33});
+  chash_i(&hx, 23, vlit(uint32_t, 12));
+  // chasht_i(hx, 20, uint32_t, 20);
 
+  for (size_t i = 0; i < hx.n; i++) {
+    printf("%zu: %5d=%5d\n", i, hx.ks[i], chash_vat(&hx, i));
+  }
+
+
+
+  return EXIT_SUCCESS;
   cvec_destroy(&x);
 
   cvec y = cvec_init(sizeof(uint64_t), 2);

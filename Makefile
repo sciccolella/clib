@@ -4,11 +4,11 @@ VPATH=test
 
 .PHONY: all
 
-all: CFLAGS+=-O3
+all: CFLAGS+=-O3 -g
 all: clib-test clib-testv
 
 debug: CFLAGS+=-O0 -g
-debug: clib-test clib-testv
+debug: clean clib-test clib-testv
 
 clib-testv: testv.o
 	$(CC) -o $@ $^  $(CFLAGS) $(EXTFLAGS)
