@@ -1,5 +1,5 @@
-#include "../cvecn.h"
 #include "../chash.h"
+#include "../cvecn.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +12,8 @@ typedef struct {
 
 // CVEC_DECLAREP(structest *, structestp);
 
-#define vlit(type, value) &(type){(value)}
+#define vlit(type, value)                                                      \
+  &(type) { (value) }
 int main(int argc, char *argv[]) {
   size_t s = 4;
   void *xx = malloc(10 * s);
@@ -55,62 +56,65 @@ int main(int argc, char *argv[]) {
   chash_i(&hx, 20, &_20);
   chash_i(&hx, 20, &_21);
   chash_i(&hx, 21, &(uint32_t){33});
-  chash_i(&hx, 23, vlit(uint32_t, 12));
+  chash_i(&hx, 23, vlit(uint32_t, 0xFFFFFFF));
   // chasht_i(hx, 20, uint32_t, 20);
 
   for (size_t i = 0; i < hx.n; i++) {
-    printf("%zu: %5d=%5d\n", i, hx.ks[i], chash_vat(&hx, i));
+    printf("%zu: %10d %10d\n", i, chm_kat(&hx, i), ((uint32_t *)hx.vs)[i]);
   }
 
-
-
-  return EXIT_SUCCESS;
-  cvec_destroy(&x);
-
-  cvec y = cvec_init(sizeof(uint64_t), 2);
-  cvec_a(&y, uint64_t, 19);
-  cvec_a(&y, uint64_t, 18);
-  cvec_a(&y, uint64_t, 17);
-  cvec_a(&y, uint64_t, 16);
-  cvec_a(&y, uint64_t, 15);
-  cvec_a(&y, uint64_t, 14);
-  cvec_a(&y, uint64_t, 13);
-  cvec_a(&y, uint64_t, 12);
-  cvec_a(&y, uint64_t, 11);
-  cvec_a(&y, uint64_t, 10);
-  cvec_a(&y, uint64_t, 9);
-  cvec_a(&y, uint64_t, 8);
-  cvec_a(&y, uint64_t, 7);
-  cvec_a(&y, uint64_t, 6);
-
-  cvec_i(&y, uint64_t, 21, 3);
-  cvec_a(&y, uint64_t, 5);
-  cvec_i(&y, uint64_t, 31, 3);
-  for (size_t i = 0; i < y.n; i++) {
-    printf("%lu ", ((uint64_t *)y.v)[i]);
-  }
-  puts("\n");
-  cvec_destroy(&y);
-
-  cvec z = cvec_init(sizeof(structest *), 2);
+  chash hz = chash_init(sizeof(structest *), 10);
   structest *t1 = malloc(sizeof *t1);
   t1->x = 21;
   t1->y = 22;
-  cvec_a(&z, structest *, t1);
   structest *t2 = malloc(sizeof *t2);
   t2->x = 11;
   t2->y = 12;
-  cvec_a(&z, structest *, t2);
   structest *t3 = malloc(sizeof *t3);
   t3->x = 1;
   t3->y = 2;
-  cvec_a(&z, structest *, t3);
-  cvec_i(&z, structest *, t3, 1);
 
+  printf("hx.s = %zu\n", hx.s);
+  chash_i(&hz, 20, t1);
+  chasht_i(hz, 21, structest *, t2);
 
-  for (size_t i = 0; i < z.n; i++) {
-    printf("%zu: {%d, %lu}\n", i, ((structest **) z.v)[i]->x, ((structest **) z.v)[i]->y);
+  for (size_t i = 0; i < hz.n; i++) {
+    printf("%zu: %10d %p\t", i, chm_kat(&hz, i), ((structest **)hz.vs)[i]);
+    // if (((structest **)hz.vs)[i])
+    //   printf("%zu: %10d {%d, %lu}", i, chm_kat(&hz, i),
+    //          ((structest **)hz.vs)[i]->x, ((structest **)hz.vs)[i]->y);
+    puts("");
+    // printf("%zu: %10d %u\n", i, chm_kat(&hz, i), ((structest **)
+    // hz.vs)[i]->x);
   }
-  free(xx);
+
+  return EXIT_SUCCESS;
+  // cvec_destroy(&x);
+  //
+  // cvec y = cvec_init(sizeof(uint64_t), 2);
+  // cvec_a(&y, uint64_t, 19);
+  // cvec_a(&y, uint64_t, 18);
+  // cvec_a(&y, uint64_t, 17);
+  // cvec_a(&y, uint64_t, 16);
+  // cvec_a(&y, uint64_t, 15);
+  // cvec_a(&y, uint64_t, 14);
+  // cvec_a(&y, uint64_t, 13);
+  // cvec_a(&y, uint64_t, 12);
+  // cvec_a(&y, uint64_t, 11);
+  // cvec_a(&y, uint64_t, 10);
+  // cvec_a(&y, uint64_t, 9);
+  // cvec_a(&y, uint64_t, 8);
+  // cvec_a(&y, uint64_t, 7);
+  // cvec_a(&y, uint64_t, 6);
+  //
+  // cvec_i(&y, uint64_t, 21, 3);
+  // cvec_a(&y, uint64_t, 5);
+  // cvec_i(&y, uint64_t, 31, 3);
+  // for (size_t i = 0; i < y.n; i++) {
+  //   printf("%lu ", ((uint64_t *)y.v)[i]);
+  // }
+  // puts("\n");
+  // cvec_destroy(&y);
+
   return EXIT_SUCCESS;
 }

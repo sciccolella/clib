@@ -21,29 +21,41 @@ typedef struct {
 
 static inline size_t hash_int(key_t x) { return x % 3; }
 
-// #define vs_at(vs, s, i) ((unsigned char *)(vs))[(i) * (s)]
-#define chash_vat(h, i) ((unsigned char *)(h)->vs)[(i) * (h)->s]
+#define chm_vat(h, i) ((unsigned char *)(h)->vs)[(i) * (h)->s]
+#define chm_kat(h, i) (h)->ks[i]
+#define chm_vati(h, i) (i) * (h).s
 
 static inline void chash_i(chash *h, key_t k, void *value) {
   size_t i = hash_int(k) % h->n;
   // linear probing
-  while (chash_vat(h, i) && h->ks[i] != k)
+  while (chm_vat(h, i) && chm_kat(h, i) != k)
     i++;
   printf("i = %zu\n", i);
-  h->ks[i] = k;
-  memcpy(&chash_vat(h, i), value, h->s);
+  chm_kat(h, i) = k;
+  memcpy(&chm_vat(h, i), value, h->s);
 }
 
-#define chasht_i(h, k, type, value)                                            \
+// static inline void chash_d(chash *hm, key_t k) {
+//   size_t i = hash_int(k) % hm->n;
+//   while (chm_kat(hm, i) != k)
+//     i++;
+//   chm_vat(hm, i) = TOMBSTONE;
+//
+// }
+
+#define chmt_vat(h, type, i) ((type *)(h)->vs)[(i)]
+#define chasht_i(hm, k, type, value)                                           \
   do {                                                                         \
-    size_t i = hash_int(k) % (h).n;                                            \
-    while (chash_vat((&h), i))                                                 \
+    size_t i = hash_int((k)) % (hm).n;                                         \
+    while (chmt_vat(&(hm), type, i) && chm_kat(&(hm), i) != (k))                 \
       i++;                                                                     \
     printf("i = %zu\n", i);                                                    \
-    ((type *)((h)).vs)[(i)] = (value);                                         \
+    chm_kat(&(hm), i) = k;                                                     \
+    chmt_vat(&(hm), type, i) = value;                                          \
   } while (0)
 
-[[nodiscard]] static inline chash chash_init(size_t size, size_t nmemb) {
+[[nodiscard]]
+static inline chash chash_init(size_t size, size_t nmemb) {
   return (chash){.s = size,
                  .c = 0,
                  .n = nmemb,
