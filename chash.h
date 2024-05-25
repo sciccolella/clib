@@ -21,19 +21,57 @@ typedef struct {
 
 static inline size_t hash_int(key_t x) { return x % 3; }
 
-#define chm_vat(h, i) ((unsigned char *)(h)->vs)[(i) * (h)->s]
+/*
+ * chm value at index:
+ * Get the index in the data structure of the hashmap `h`
+ * of the value at position `i`
+ */
+#define chm_vatix(h, i) (i) * (h)->s
+/*
+ * chm key at index:
+ * Get the index in the data structure of the hashmap `h`
+ * of the key at position `i`
+ */
+#define chm_katix(h, i) (i)
+/*
+ * chm value at:
+ * Get the value the hashmap `h` at position `i`
+ * as `unsigned char*`
+ */
+#define chm_vat(h, i) ((unsigned char *)(h)->vs)[chm_vatix((h), (i))]
+/*
+ * chm key at index:
+ * Get the key the hashmap `h` at position `i`
+ * as `key_t`
+ */
 #define chm_kat(h, i) (h)->ks[i]
-#define chm_vati(h, i) (i) * (h).s
+
 
 static inline void chash_i(chash *h, key_t k, void *value) {
   size_t i = hash_int(k) % h->n;
   // linear probing
   while (chm_vat(h, i) && chm_kat(h, i) != k)
     i++;
-  printf("i = %zu\n", i);
   chm_kat(h, i) = k;
   memcpy(&chm_vat(h, i), value, h->s);
 }
+
+/*
+ * chm typed value at index:
+ * Get the value the hashmap `h` at position `i`
+ * as `type *`
+ * NOTE: 
+ */
+#define chmt_vat(h, type, i) ((type *)(h)->vs)[(i)]
+#define chasht_i(hm, k, type, value)                                           \
+  do {                                                                         \
+    size_t i = hash_int((k)) % (hm).n;                                         \
+    while (chmt_vat(&(hm), type, i) && chm_kat(&(hm), i) != (k))               \
+      i++;                                                                     \
+    printf("i = %zu\n", i);                                                    \
+    chm_kat(&(hm), i) = k;                                                     \
+    chmt_vat(&(hm), type, i) = value;                                          \
+  } while (0)
 
 // static inline void chash_d(chash *hm, key_t k) {
 //   size_t i = hash_int(k) % hm->n;
@@ -42,17 +80,6 @@ static inline void chash_i(chash *h, key_t k, void *value) {
 //   chm_vat(hm, i) = TOMBSTONE;
 //
 // }
-
-#define chmt_vat(h, type, i) ((type *)(h)->vs)[(i)]
-#define chasht_i(hm, k, type, value)                                           \
-  do {                                                                         \
-    size_t i = hash_int((k)) % (hm).n;                                         \
-    while (chmt_vat(&(hm), type, i) && chm_kat(&(hm), i) != (k))                 \
-      i++;                                                                     \
-    printf("i = %zu\n", i);                                                    \
-    chm_kat(&(hm), i) = k;                                                     \
-    chmt_vat(&(hm), type, i) = value;                                          \
-  } while (0)
 
 [[nodiscard]]
 static inline chash chash_init(size_t size, size_t nmemb) {

@@ -74,47 +74,20 @@ int main(int argc, char *argv[]) {
   t3->x = 1;
   t3->y = 2;
 
-  printf("hx.s = %zu\n", hx.s);
-  chash_i(&hz, 20, t1);
+  printf("hz.s = %zu\n", hz.s);
+  chash_i(&hz, 20, &t1);
   chasht_i(hz, 21, structest *, t2);
 
   for (size_t i = 0; i < hz.n; i++) {
+
     printf("%zu: %10d %p\t", i, chm_kat(&hz, i), ((structest **)hz.vs)[i]);
-    // if (((structest **)hz.vs)[i])
-    //   printf("%zu: %10d {%d, %lu}", i, chm_kat(&hz, i),
-    //          ((structest **)hz.vs)[i]->x, ((structest **)hz.vs)[i]->y);
+    if (((structest **)hz.vs)[i])
+      printf("%zu: %10d {%d, %lu}", i, chm_kat(&hz, i),
+             ((structest **)hz.vs)[i]->x, ((structest **)hz.vs)[i]->y);
     puts("");
     // printf("%zu: %10d %u\n", i, chm_kat(&hz, i), ((structest **)
     // hz.vs)[i]->x);
   }
-
-  return EXIT_SUCCESS;
-  // cvec_destroy(&x);
-  //
-  // cvec y = cvec_init(sizeof(uint64_t), 2);
-  // cvec_a(&y, uint64_t, 19);
-  // cvec_a(&y, uint64_t, 18);
-  // cvec_a(&y, uint64_t, 17);
-  // cvec_a(&y, uint64_t, 16);
-  // cvec_a(&y, uint64_t, 15);
-  // cvec_a(&y, uint64_t, 14);
-  // cvec_a(&y, uint64_t, 13);
-  // cvec_a(&y, uint64_t, 12);
-  // cvec_a(&y, uint64_t, 11);
-  // cvec_a(&y, uint64_t, 10);
-  // cvec_a(&y, uint64_t, 9);
-  // cvec_a(&y, uint64_t, 8);
-  // cvec_a(&y, uint64_t, 7);
-  // cvec_a(&y, uint64_t, 6);
-  //
-  // cvec_i(&y, uint64_t, 21, 3);
-  // cvec_a(&y, uint64_t, 5);
-  // cvec_i(&y, uint64_t, 31, 3);
-  // for (size_t i = 0; i < y.n; i++) {
-  //   printf("%lu ", ((uint64_t *)y.v)[i]);
-  // }
-  // puts("\n");
-  // cvec_destroy(&y);
 
   return EXIT_SUCCESS;
 }
