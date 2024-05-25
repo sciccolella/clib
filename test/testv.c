@@ -77,6 +77,7 @@ int main(int argc, char *argv[]) {
   printf("hz.s = %zu\n", hz.s);
   chash_i(&hz, 20, &t1);
   chasht_i(hz, 21, structest *, t2);
+  chash_i(&hz, 23, &t1);
 
   for (size_t i = 0; i < hz.n; i++) {
 
@@ -88,6 +89,13 @@ int main(int argc, char *argv[]) {
     // printf("%zu: %10d %u\n", i, chm_kat(&hz, i), ((structest **)
     // hz.vs)[i]->x);
   }
+
+  structest *hz_v20 = *(structest **)chash_g(&hz, 20);
+  printf("%d: {%d, %lu}\n", 20, hz_v20->x, hz_v20->y);
+
+  structest *hz_v20_2 = {0} ;
+  memcpy(&hz_v20_2, chash_g(&hz, 20), hz.s);
+  printf("%d: {%d, %lu}\n", 20, hz_v20_2->x, hz_v20_2->y);
 
   return EXIT_SUCCESS;
 }
