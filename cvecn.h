@@ -39,19 +39,19 @@ static inline void cvec_destroy(cvec *restrict vec) {
   vec->v = NULL;
 }
 
-#define cvec_a(vec, type, x)                                                  \
+#define cvec_a(vec, type, x)                                                   \
   do {                                                                         \
     if ((vec)->n >= (vec)->c)                                                  \
       cvec_expand_((vec));                                                     \
-    ((type *)(vec)->v)[(vec)->n] = (x);                                          \
+    ((type *)(vec)->v)[(vec)->n] = (x);                                        \
     (vec)->n++;                                                                \
                                                                                \
   } while (0)
 
-#define cvec_i(vec, type, x, i)                                               \
+#define cvec_i(vec, type, x, i)                                                \
   do {                                                                         \
     if (i > (vec)->c)                                                          \
-      cvec_a((vec), type, x);                                                 \
+      cvec_a((vec), type, x);                                                  \
     if ((vec)->n >= (vec)->c)                                                  \
       cvec_expand_((vec));                                                     \
     memmove(&((type *)(vec)->v)[i + 1], &((type *)(vec)->v)[i],                \
@@ -93,13 +93,13 @@ static inline void cvec_destroy(cvec *restrict vec) {
 //   if (i == vec->n)
 //     return;
 //   memmove(&((unsigned char *)vec->v)[i * vec->s],
-//           &((unsigned char *)vec->v)[(i + 1) * vec->s], (vec->n - i) * vec->s);
+//           &((unsigned char *)vec->v)[(i + 1) * vec->s], (vec->n - i) *
+//           vec->s);
 // }
 //
 // static inline void cvecp_destroy(cvecp *restrict vec) {
 //   free(vec->v);
 //   vec->v = NULL;
 // }
-
 
 #endif

@@ -12,6 +12,17 @@ typedef struct {
 
 // CVEC_DECLAREP(structest *, structestp);
 
+#define print_structest_debug(hz)                                              \
+  for (size_t i = 0; i < hz.n; i++) {                                          \
+    printf("%zu: %10d %p\t", i, chm_kat(&hz, i), ((structest **)hz.vs)[i]);    \
+    if (chmt_vat(&hz, structest *, i) == TOMBSTONE)                            \
+      printf("T");                                                             \
+    else if (((structest **)hz.vs)[i])                                         \
+      printf("%zu: %10d {%d, %lu}", i, chm_kat(&hz, i),                        \
+             ((structest **)hz.vs)[i]->x, ((structest **)hz.vs)[i]->y);        \
+    puts("");                                                                  \
+  }
+
 #define vlit(type, value)                                                      \
   &(type) { (value) }
 int main(int argc, char *argv[]) {
@@ -79,23 +90,25 @@ int main(int argc, char *argv[]) {
   chasht_i(hz, 21, structest *, t2);
   chash_i(&hz, 23, &t1);
 
-  for (size_t i = 0; i < hz.n; i++) {
-
-    printf("%zu: %10d %p\t", i, chm_kat(&hz, i), ((structest **)hz.vs)[i]);
-    if (((structest **)hz.vs)[i])
-      printf("%zu: %10d {%d, %lu}", i, chm_kat(&hz, i),
-             ((structest **)hz.vs)[i]->x, ((structest **)hz.vs)[i]->y);
-    puts("");
-    // printf("%zu: %10d %u\n", i, chm_kat(&hz, i), ((structest **)
-    // hz.vs)[i]->x);
-  }
+  print_structest_debug(hz);
 
   structest *hz_v20 = *(structest **)chash_g(&hz, 20);
   printf("%d: {%d, %lu}\n", 20, hz_v20->x, hz_v20->y);
 
-  structest *hz_v20_2 = {0} ;
+  structest *hz_v20_2 = {0};
   memcpy(&hz_v20_2, chash_g(&hz, 20), hz.s);
   printf("%d: {%d, %lu}\n", 20, hz_v20_2->x, hz_v20_2->y);
+
+  structest *hz_v20t;
+  chasht_g(hz, 20, structest *, hz_v20t);
+  printf("%d: {%d, %lu}\n", 20, hz_v20t->x, hz_v20t->y);
+
+  chasht_d(hz, 21, structest *);
+  print_structest_debug(hz);
+  chash_i(&hz, 21, &t2);
+  print_structest_debug(hz);
+
+
 
   return EXIT_SUCCESS;
 }

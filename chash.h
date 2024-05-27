@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const void *const TOMBSTONE =
+static void *const TOMBSTONE =
     &"gqhDrC4f8B319YSccLSDG6yE4zD51bnFntgLHrbt132ejbz9TpeL9rMFxOe61DDdQ8WNETtjE"
      "YQKfmZFSqx7gbvmWnbYHNBOI6lS52QbUuUb1TGMj13V56HcjUEjJsvv";
 
@@ -61,12 +61,11 @@ static inline void **chash_g(chash *h, key_ttt k) {
   while (chm_kat(h, i) != k)
     i++;
 
-  // void *r = (void*) &chm_vat(h, i);
-  // return r; 
-  return (void*) &chm_vat(h, i);
+  return (void *)&chm_vat(h, i);
 }
 
-// static inline void chash_d(chash *h, key_ttt k) { size_t i = hash_int(k) % h->n; }
+// static inline void chash_d(chash *h, key_ttt k) { size_t i = hash_int(k) %
+// h->n; }
 
 /*
  * chm typed value at index:
@@ -75,17 +74,32 @@ static inline void **chash_g(chash *h, key_ttt k) {
  * NOTE:
  */
 #define chmt_vat(h, type, i) ((type *)(h)->vs)[(i)]
-#define chasht_i(hm, k, type, value)                                           \
+#define chasht_i(hm, k, vtype, value)                                          \
   do {                                                                         \
     size_t i = hash_int((k)) % (hm).n;                                         \
     printf("hash = %zu\n", i);                                                 \
-    while (chmt_vat(&(hm), type, i) && chm_kat(&(hm), i) != (k))               \
+    while (chmt_vat(&(hm), vtype, i) && chm_kat(&(hm), i) != (k))              \
       i++;                                                                     \
     printf("i = %zu\n", i);                                                    \
     chm_kat(&(hm), i) = k;                                                     \
-    chmt_vat(&(hm), type, i) = value;                                          \
+    chmt_vat(&(hm), vtype, i) = value;                                         \
   } while (0)
 
+#define chasht_g(hm, k, vtype, value)                                          \
+  do {                                                                         \
+    size_t i = hash_int((k)) % (hm).n;                                         \
+    while (chm_kat(&(hm), i) != k)                                             \
+      i++;                                                                     \
+    (value) = ((vtype *)(hm).vs)[i];                                           \
+  } while (0)
+
+#define chasht_d(hm, k, vtype)                                                 \
+  do {                                                                         \
+    size_t i = hash_int((k)) % (hm).n;                                         \
+    while (chm_kat(&(hm), i) != k)                                             \
+      i++;                                                                     \
+    chmt_vat(&(hm), vtype, i) = TOMBSTONE;                                     \
+  } while (0)
 // static inline void chash_d(chash *hm, key_t k) {
 //   size_t i = hash_int(k) % hm->n;
 //   while (chm_kat(hm, i) != k)
