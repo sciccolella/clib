@@ -20,6 +20,7 @@ typedef struct {
     else if (((structest **)hz.vs)[i])                                         \
       printf("%zu: %10d {%d, %lu}", i, chm_kat(&hz, i),                        \
              ((structest **)hz.vs)[i]->x, ((structest **)hz.vs)[i]->y);        \
+    printf("\tvat? %d", chm_vat(&hz, i));                                      \
     puts("");                                                                  \
   }
 
@@ -105,10 +106,29 @@ int main(int argc, char *argv[]) {
 
   chasht_d(hz, 21, structest *);
   print_structest_debug(hz);
+  // void *tomb = malloc(hz.s);
+  // tomb = TOMBSTONE;
+  // memcpy(tomb, &TOMBSTONE, hz.s);
+  // printf("tomb == TOMBSTONE = %d\n", tomb == &TOMBSTONE);
+  // printf("memcmp(tomb, &TOMBSTONE, hz.s) = %d\n", memcmp(tomb, &TOMBSTONE, hz.s));
+  // int check = *(structest **)((void *)&chm_vat(&hz, 0)) == TOMBSTONE;
+  // printf("check = %d (%p)\n", check, &chm_vat(&hz, 0));
+  // int checkt = ((structest **)(&hz)->vs)[(0)] == TOMBSTONE;
+  // printf("checkt = %d (%p)\n", checkt, chmt_vat(&hz, structest *, 0));
+  // printf("memcmp((void*)&chm_vat(&hz, 0), &TOMBSTONE, hz.s) = %d\n", memcmp((void*)&chm_vat(&hz, 0), &TOMBSTONE, hz.s));
+  // printf("(void*)&chm_vat(&hz, 0) == &TOMBSTONE = %d\n", (void*)&chm_vat(&hz, 0) == &TOMBSTONE);
+  // printf("memcmp((void*)&chm_vat(&hz, 2), &TOMBSTONE, hz.s) = %d\n", memcmp((void*)&chm_vat(&hz, 2), &TOMBSTONE, hz.s));
+  // printf("(void*)&chm_vat(&hz, 2) == &TOMBSTONE = %d\n", (void*)&chm_vat(&hz, 2) == &TOMBSTONE);
+
   chash_i(&hz, 21, &t2);
+  chash_i(&hz, 21, &t2);
+
+
+  // chasht_i(hz, 21, structest *, t2);
   print_structest_debug(hz);
-
-
+  chash_d(&hz, 21);
+  puts("");
+  print_structest_debug(hz);
 
   return EXIT_SUCCESS;
 }
