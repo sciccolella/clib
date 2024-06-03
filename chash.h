@@ -46,6 +46,8 @@ static inline size_t hash_int(key_ttt x) { return x % 3; }
  */
 #define chm_kat(h, i) (h)->ks[i]
 
+#define chm_kat_null(hm, i) chm_kat((hm), i) == 0
+
 static inline void chash_i(chash *h, key_ttt k, void *value) {
   size_t i = hash_int(k) % h->n;
   printf("hash = %zu\n", i); // linear probing
@@ -62,7 +64,7 @@ static inline void chash_i(chash *h, key_ttt k, void *value) {
 
 static inline void **chash_g(chash *h, key_ttt k) {
   size_t i = hash_int(k) % h->n;
-  while (chm_kat(h, i) != k && i < h->n)
+  while (chm_kat(h, i) != k && !(chm_kat_null(h, i)) && i < h->n)
     i++;
 
   return (void *)&chm_vat(h, i);
@@ -102,9 +104,12 @@ static inline void chash_d(chash *h, key_ttt k) {
 #define chasht_g(hm, k, vtype, value)                                          \
   do {                                                                         \
     size_t i = hash_int((k)) % (hm).n;                                         \
-    while (chm_kat(&(hm), i) != k && i < (hm).n)                               \
+    while (chm_kat(&(hm), i) != k && !(chm_kat_null(&(hm), i)) && i < (hm).n)  \
       i++;                                                                     \
-    (value) = ((vtype *)(hm).vs)[i];                                           \
+    if (chm_kat_null(&(hm), i))                                                \
+      (value) = (vtype)0;                                                      \
+    else                                                                       \
+      (value) = ((vtype *)(hm).vs)[i];                                         \
   } while (0)
 
 #define chasht_d(hm, k, vtype)                                                 \
@@ -118,13 +123,18 @@ static inline void chash_d(chash *h, key_ttt k) {
     (hm).c--;                                                                  \
   } while (0)
 
-// static inline void chash_d(chash *hm, key_t k) {
-//   size_t i = hash_int(k) % hm->n;
-//   while (chm_kat(hm, i) != k)
-//     i++;
-//   chm_vat(hm, i) = TOMBSTONE;
-//
-// }
+#define chasht_resize(hm, vtype, size)                                         \
+  do {                                                                         \
+    size_t newc = size;                                                        \
+    if ((hm).n < newc) {                                                       \
+      chash nhm = chash_init((hm).s, newc);                                    \
+      for (size_t x = 0; x < (hm).n; x++) {                                    \
+        chasht_i(nhm, chm_kat(&(hm), x), vtype, chmt_vat(&(hm), vtype, x));    \
+      }                                                                        \
+      /* TODO: free hm */                                                      \
+      hm = nhm;                                                                \
+    }                                                                          \
+  } while (0)
 
 [[nodiscard]] static inline chash chash_init(size_t size, size_t nmemb) {
   return (chash){.s = size,
