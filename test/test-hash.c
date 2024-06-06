@@ -11,24 +11,24 @@ typedef struct {
 
 // CVEC_DECLAREP(structest *, structestp);
 
-#define print_structest_debug(hz)                                              \
-  for (size_t i = 0; i < hz.n; i++) {                                          \
-    printf("%zu: %10d %p\t", i, chm_kat(&hz, i), ((structest **)hz.vs)[i]);    \
-    if (chmt_vat(&hz, structest *, i) == TOMBSTONE)                            \
-      printf("T");                                                             \
-    else if (((structest **)hz.vs)[i])                                         \
-      printf("%zu: %10d {%d, %lu}", i, chm_kat(&hz, i),                        \
-             ((structest **)hz.vs)[i]->x, ((structest **)hz.vs)[i]->y);        \
-    printf("\tvat? %d", chm_vat(&hz, i));                                      \
-    puts("");                                                                  \
-  }
+/* #define print_structest_debug(hz) */ \
+  /* for (size_t i = 0; i < hz.n; i++) { */ \
+    /* printf("%zu: %10d %pt", i, chm_kat(&hz, i), ((structest **)hz.vs)[i]); */ \
+    /* if (chmt_vat(&hz, structest *, i) == TOMBSTONE) */ \
+      /* printf("T"); */ \
+    /* else if (((structest **)hz.vs)[i]) */ \
+      /* printf("%zu: %10d {%d, %lu}", i, chm_kat(&hz, i), */ \
+             /* ((structest **)hz.vs)[i]->x, ((structest **)hz.vs)[i]->y); */ \
+    /* printf("tvat? %d", chm_vat(&hz, i)); */ \
+    /* puts(""); */ \
+  /* } */
 
 #define print_structest_debug2(hz)                                             \
   for (size_t i = 0; i < (hz)->c; i++) {                                       \
-    printf("%3zu: %10d %pt", i, (hz)->ks[i], ((structest **)hz->vs)[i]);        \
+    printf("%3zu: %10d %20p", i, (hz)->ks[i], ((structest **)hz->vs)[i]);      \
     if (((structest **)hz->vs)[i])                                             \
-      printf("%zu: %10d {%d, %lu}", i, (hz)->ks[i],                            \
-             ((structest **)hz->vs)[i]->x, ((structest **)hz->vs)[i]->y);      \
+      printf(" -> {%d, %lu}", ((structest **)hz->vs)[i]->x,                       \
+             ((structest **)hz->vs)[i]->y);                                    \
     puts("");                                                                  \
   }
 
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
   // }
   // return EXIT_SUCCESS;
 
-  chash *hz = chash_init(sizeof(structest *), 10);
+  chash *hz = chash_init(sizeof(structest *), 5);
   structest *t1 = malloc(sizeof *t1);
   t1->x = 21;
   t1->y = 22;
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   // chasht_i(hz, 21, structest *, t2);
   chash_i2(hz, 23, &t1);
   chash_i2(hz, 25, &t1);
-  chash_i2(hz, 28, &t1);
+  chash_i2(hz, 2, &t1);
   chash_i2(hz, 27, &t1);
   chash_i2(hz, 29, &t1);
   chash_i2(hz, 30, &t1);
@@ -108,8 +108,9 @@ int main(int argc, char *argv[]) {
   print_structest_debug2(hz);
 
   printf("h = %p\n", hz);
-  size_t done = chash_resize(&hz, 15);
+  size_t done = chash_resize2(hz, 15);
   printf("done = %zu\n", done);
+  printf("h->ks = %p\n", hz->ks);
   printf("h = %p\n", hz);
   print_structest_debug2(hz);
   // void *tomb = malloc(hz.s);

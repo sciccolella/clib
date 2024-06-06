@@ -27,6 +27,8 @@ typedef struct {
   void *vs;
 } chash;
 
+static inline size_t chash_resize2(chash *h, size_t nmemb);
+
 [[nodiscard]] static inline chash *chash_init(size_t size, size_t nmemb) {
   chash *h = malloc(sizeof *h);
   if (!h)
@@ -35,7 +37,7 @@ typedef struct {
   h->n = 0;
   h->c = nmemb;
   h->ks = malloc(sizeof(key_ty) * nmemb);
-  h->vs = malloc(size * nmemb);
+  h->vs = malloc(h->s * nmemb);
   return h;
 }
 
@@ -91,6 +93,10 @@ static inline size_t hash_int(key_ty x) { return x % 3; }
 }
 
 static inline void chash_i2(chash *h, key_ty k, void *value) {
+  if (h->n == h->c)
+    if (!chash_resize2(h, h->c << 1))
+      exit(EXIT_FAILURE);
+
   size_t i = hash_int(k) % h->c;
   printf("key = %d, hash = %zu\n", k, i); // linear probing
   while (!(chm_kat_null(h, i)) && chm_kat(h, i) != k && i < h->c &&
@@ -98,11 +104,7 @@ static inline void chash_i2(chash *h, key_ty k, void *value) {
          chm_vat(h, i))
     i++;
 
-  if (i == h->c) {
-    // TODO: resize & recall func
-    printf("full\n");
-    return;
-  }
+  printf("[%s] inserted k:%u -> %zu\n", __func__, k, i);
   // printf("i = %zu\n", i);
   chm_kat(h, i) = k;
   memcpy(&chm_vat(h, i), value, h->s);
@@ -131,35 +133,30 @@ static inline void chash_d2(chash *h, key_ty k) {
   size_t i = hash_int(k) % h->c;
   while (chm_kat(h, i) != k && i < h->c)
     i++;
-  size_t hi = hash_int(chm_kat(h, i)) % h->c;
-  size_t j = i + 1;
+  size_t j = (i + 1) % h->c;
   // memcpy((void *)&chm_vat(h, i), &TOMBSTONE, h->s);
-  // TODO: add stop if j>i
-  while (!(chm_kat_null(h, j))) {
+  while (j != i && !(chm_kat_null(h, j))) {
     size_t hj = hash_int(chm_kat(h, j)) % h->c;
-    printf("\tj:%zu, not null\n", j);
-    printf("\t\thj = %zu\n", hj);
-    printf("\t\thi = %zu\n", hi);
-    printf("\t\tj<i = %d\n", j < i);
-    printf("\t\thj <= i = %d\n", hj <= i);
-    printf("\t\thj>j = %d\n", hj > j);
+    // printf("\tj:%zu, not null\n", j);
+    // printf("\t\thj = %zu\n", hj);
+    // printf("\t\tj<i = %d\n", j < i);
+    // printf("\t\thj <= i = %d\n", hj <= i);
+    // printf("\t\thj>j = %d\n", hj > j);
     if ((j < i) ^ (hj <= i) ^ (hj > j)) {
-      printf("[%s], substuting %2zu<-%2zu\n", __func__, i, j);
+      // printf("[%s], substuting %2zu<-%2zu\n", __func__, i, j);
       chm_kat(h, i) = chm_kat(h, j);
-      // memcpy((void *)&chm_vat(h, i), (void *)&chm_vat(h, j), h->s);
       memcpy(chm_vat_vp(h, i), chm_vat_vp(h, j), h->s);
       i = j;
-      hi = hj;
     }
-    j++;
+    j = (j + 1) % h->c;
   }
   /* TODO: reset key to proper null value */
   chm_kat(h, i) = 0;
-  memset(&chm_vat(h, i), 0, h->s);
+  memset(chm_vat_vp(h, i), 0, h->s);
   h->n--;
 }
 
-static inline size_t chash_resize(chash **h, size_t size) {
+[[deprecated]] static inline size_t chash_resize(chash **h, size_t size) {
   printf("[%s]\n", __func__);
   if (size < (*h)->c)
     return 0;
@@ -173,6 +170,40 @@ static inline size_t chash_resize(chash **h, size_t size) {
   chash_destroy(*h);
   *h = h_;
   return size;
+}
+
+#define s_vatix(i, size) i *size
+#define ks_kat(ks, i) (ks)[i]
+#define vs_vat_vp(vs, i, size)                                                 \
+  (void *)&((unsigned char *)(vs))[s_vatix((i), (size))]
+#define ks_kat_null(ks, i) ks_kat((ks), (i)) == 0
+
+static inline size_t chash_resize2(chash *h, size_t nmemb) {
+  printf("[%s]\n", __func__);
+  if (nmemb < h->c)
+    return 0;
+
+  // key_ty *nks = malloc(sizeof(key_ty) * nmemb);
+  // void *nvs = malloc(h->s * nmemb);
+  key_ty *nks = calloc(nmemb, sizeof(key_ty));
+  void *nvs = calloc(nmemb, h->s);
+  if (!nks || !nvs)
+    return 0;
+
+  key_ty *oks = h->ks;
+  void *ovs = h->vs;
+  h->ks = nks;
+  h->vs = nvs;
+  h->n = 0;
+
+  for (size_t i = 0; i < h->c; i++) {
+    if (!(ks_kat_null(oks, i)))
+      chash_i2(h, ks_kat(oks, i), vs_vat_vp(ovs, i, h->s));
+  }
+  FREE(oks);
+  FREE(ovs);
+  h->c = nmemb;
+  return nmemb;
 }
 
 /*
