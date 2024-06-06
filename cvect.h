@@ -6,22 +6,30 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef FREE
 #define FREE(x)                                                                \
   do {                                                                         \
     free((x));                                                                 \
     (x) = NULL;                                                                \
   } while (0)
+#endif
 
 typedef struct {
   size_t c, n, s;
   void *v;
-} cvect;
+} cvec;
 
-[[nodiscard]] static inline cvect cvect_init(size_t s, size_t c) {
-  return (cvect){.c = c, .n = 0, .s = s, .v = malloc(s * c)};
+/*
+ * Initialize a vector of initial capacity `c`,
+ * whose members have size of `size`
+ *
+ * Returns: `cvect`
+ */
+[[nodiscard]] static inline cvec cvect_init(size_t size, size_t c) {
+  return (cvec){.c = c, .n = 0, .s = size, .v = malloc(size * c)};
 }
 
-static inline size_t cvect_expand_(cvect *restrict vec) {
+static inline size_t cvect_expand_(cvec *restrict vec) {
   void *tmp = realloc(vec->v, vec->s * (vec->c << 1));
   if (!tmp)
     return 0;
@@ -30,7 +38,10 @@ static inline size_t cvect_expand_(cvect *restrict vec) {
   return vec->c;
 }
 
-static inline void cvect_d(cvect *restrict vec, const size_t i) {
+/*
+ * Delete the element of vector `*vec` at position `i`
+ */
+static inline void cvect_d(cvec *restrict vec, const size_t i) {
   if (i > vec->n)
     return;
   vec->n--;
@@ -40,45 +51,49 @@ static inline void cvect_d(cvect *restrict vec, const size_t i) {
           &((unsigned char *)vec->v)[(i + 1) * vec->s], (vec->n - i) * vec->s);
 }
 
-static inline void cvect_destroy(cvect *restrict vec) {
-  free(vec->v);
-  vec->v = NULL;
-}
+/*
+ * Destroy the vector `vec`
+ *
+ * NOTE: this only frees the container.
+ * It is delegated to the user to delete the content, if necessary
+ */
+static inline void cvect_destroy(cvec *restrict vec) { FREE(vec->v); }
 
+/*
+ * Append the object `x` of type `type` to the cvect `vec`
+ *
+ * NOTE: function-like inline macro
+ */
 #define cvect_a(vec, type, x)                                                  \
   do {                                                                         \
-    if ((vec)->n >= (vec)->c)                                                  \
-      cvec_expand_((vec));                                                     \
-    ((type *)(vec)->v)[(vec)->n] = (x);                                        \
-    (vec)->n++;                                                                \
-                                                                               \
+    if ((vec).n >= (vec).c)                                                    \
+      cvect_expand_(&(vec));                                                   \
+    ((type *)(vec).v)[(vec).n] = (x);                                          \
+    (vec).n++;                                                                 \
   } while (0)
 
+/*
+ * Insert the object `x` of type `type` to the cvect `vec` at position `i`
+ *
+ * NOTE: function-like inline macro
+ */
 #define cvect_i(vec, type, x, i)                                               \
   do {                                                                         \
-    if (i > (vec)->c)                                                          \
+    if (i > (vec).c)                                                           \
       cvect_a((vec), type, x);                                                 \
-    if ((vec)->n >= (vec)->c)                                                  \
-      cvec_expand_((vec));                                                     \
-    memmove(&((type *)(vec)->v)[i + 1], &((type *)(vec)->v)[i],                \
-            ((vec)->n - i) * (vec)->s);                                        \
-    ((type *)(vec)->v)[i] = x;                                                 \
+    if ((vec).n >= (vec).c)                                                    \
+      cvect_expand_(&(vec));                                                   \
+    memmove(&((type *)(vec).v)[i + 1], &((type *)(vec).v)[i],                  \
+            ((vec).n - i) * (vec).s);                                          \
+    ((type *)(vec).v)[i] = x;                                                  \
+    (vec).n++;                                                                 \
   } while (0)
 
-#define cvect_destroy_iter(vec, type)                                          \
-  do {                                                                         \
-    for (size_t i = 0; i < vec->n; i++)                                        \
-      FREE(((type *)(vec)->v)[i]);                                             \
-    FREE(vec->v);                                                              \
-    /* free(vec->v); */                                                        \
-    /* vec->v = NULL; */                                                       \
-  } while (0)
-
-/* #define CVEC_DECLAREP(type, typename) */ /* static inline void cvec_## */
-/* typename##_destroy_iter(cvec_##typename *restrict vec) { */  /* for (size_t i
-                                                                   = 0; i <
-                                                                   vec->n; i++)
-                                                                 */
-/* free(vec->v[i]); */ /* free(vec->v); */ /* vec->v = NULL; */ /* } */
+/*
+ * Get the element of type `type` to the cvec `vec` at position `i`
+ *
+ * NOTE: inline macro
+ */
+#define cvect_g(vec, type, i) ((type *)(vec).v)[i]
 
 #endif
