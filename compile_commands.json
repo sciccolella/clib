@@ -6,13 +6,14 @@
       "-Wall",
       "-std=c2x",
       "-O3",
+      "-g",
       "-o",
-      "test.o",
-      "test/test.c"
+      "clib-test-vect",
+      "test/test-vect.c"
     ],
     "directory": "/home/ciccolella/code/clib",
-    "file": "/home/ciccolella/code/clib/test/test.c",
-    "output": "/home/ciccolella/code/clib/test.o"
+    "file": "/home/ciccolella/code/clib/test/test-vect.c",
+    "output": "/home/ciccolella/code/clib/clib-test-vect"
   },
   {
     "arguments": [
@@ -21,12 +22,77 @@
       "-Wall",
       "-std=c2x",
       "-O3",
+      "-g",
       "-o",
-      "testv.o",
-      "test/testv.c"
+      "clib-test-vect",
+      "cvect.h"
     ],
     "directory": "/home/ciccolella/code/clib",
-    "file": "/home/ciccolella/code/clib/test/testv.c",
-    "output": "/home/ciccolella/code/clib/testv.o"
+    "file": "/home/ciccolella/code/clib/cvect.h",
+    "output": "/home/ciccolella/code/clib/clib-test-vect"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-std=c2x",
+      "-O3",
+      "-g",
+      "-o",
+      "clib-test-vec",
+      "test/test-vec.c"
+    ],
+    "directory": "/home/ciccolella/code/clib",
+    "file": "/home/ciccolella/code/clib/test/test-vec.c",
+    "output": "/home/ciccolella/code/clib/clib-test-vec"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-std=c2x",
+      "-O3",
+      "-g",
+      "-o",
+      "clib-test-vec",
+      "cvec.h"
+    ],
+    "directory": "/home/ciccolella/code/clib",
+    "file": "/home/ciccolella/code/clib/cvec.h",
+    "output": "/home/ciccolella/code/clib/clib-test-vec"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-std=c2x",
+      "-O3",
+      "-g",
+      "-o",
+      "clib-test-hash",
+      "test/test-hash.c"
+    ],
+    "directory": "/home/ciccolella/code/clib",
+    "file": "/home/ciccolella/code/clib/test/test-hash.c",
+    "output": "/home/ciccolella/code/clib/clib-test-hash"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-Wall",
+      "-std=c2x",
+      "-O3",
+      "-g",
+      "-o",
+      "clib-test-hash",
+      "chash.h"
+    ],
+    "directory": "/home/ciccolella/code/clib",
+    "file": "/home/ciccolella/code/clib/chash.h",
+    "output": "/home/ciccolella/code/clib/clib-test-hash"
   }
 ]

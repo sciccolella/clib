@@ -35,8 +35,6 @@ CVEC_DECLAREP(structest *, structestp);
 
 
 int main(int argc, char *argv[]) {
-
-  // cvec_uint32_t x = cvec_uint32_t_init(2);
   cvec_uint32_t x = cvec_init(uint32_t, 2);
   cvec_a(&x, 19);
   cvec_a(&x, 18);
