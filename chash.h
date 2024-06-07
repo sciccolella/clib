@@ -16,6 +16,8 @@
 
 typedef uint32_t key_ty;
 typedef struct {
+  int (*keql)(void *, void *);
+  size_t (*khash)(void *);
   size_t sk;
   size_t sv;
   size_t n;
@@ -25,6 +27,17 @@ typedef struct {
   void *vs;
 } chash;
 
+static inline size_t hash_int(key_ty x) { return x % 3; }
+static inline size_t hash_int2(void *x) {
+  uint32_t X = *(uint32_t *)x;
+  return X % 3;
+}
+static inline int keql(void *a, void *b) {
+  uint32_t A = *(uint32_t *)a;
+  uint32_t B = *(uint32_t *)b;
+  // printf("[%s] A:%10u B:%10u eql?: %d\n", __func__, A, B, A == B);
+  return A == B;
+}
 static inline size_t chash_resize2(chash *h, size_t nmemb);
 
 [[nodiscard]] static inline chash *chash_init(size_t ksize, size_t vsize) {
@@ -32,6 +45,9 @@ static inline size_t chash_resize2(chash *h, size_t nmemb);
   chash *h = malloc(sizeof *h);
   if (!h)
     return NULL;
+  // TODO: add to initialization
+  h->keql = keql;
+  h->khash = hash_int2;
   h->sk = ksize;
   h->sv = vsize;
   h->n = 0;
@@ -49,8 +65,6 @@ static inline void chash_destroy(chash *h) {
   FREE(h->vs);
   FREE(h);
 }
-
-static inline size_t hash_int(key_ty x) { return x % 3; }
 
 /* chm value at index:
  * Get the index in the data structure of the hashmap `h`
@@ -104,13 +118,6 @@ static inline size_t hash_int(key_ty x) { return x % 3; }
 //   h->n++;
 // }
 
-static inline int keql(void *a, void *b) {
-  uint32_t A = *(uint32_t *)a;
-  uint32_t B = *(uint32_t *)b;
-  // printf("[%s] A:%10u B:%10u eql?: %d\n", __func__, A, B, A == B);
-  return A == B;
-}
-
 static inline int memzero(void *m, size_t s) {
   size_t r = 0;
   uint8_t *m_ = m;
@@ -120,13 +127,35 @@ static inline int memzero(void *m, size_t s) {
   return r == 0;
 }
 
-static inline void chash_i2(chash *h, key_ty k, void *value) {
+#define plit(v)                                                                \
+  _Generic((v),                                                                \
+      uint8_t: &(uint8_t){(v)},                                                \
+      uint16_t: &(uint16_t){(v)},                                              \
+      uint32_t: &(uint32_t){(v)},                                              \
+      uint64_t: &(uint64_t){(v)},                                              \
+      int8_t: &(int8_t){(v)},                                                  \
+      int16_t: &(int16_t){(v)},                                                \
+      int32_t: &(int32_t){(v)},                                                \
+      int64_t: &(int64_t){(v)},                                                \
+      char: &(char){(v)},                                                      \
+      float: &(float){(v)},                                                    \
+      double: &(double){(v)},                                                  \
+      long double: &(long double){(v)},                                        \
+      default: (v))
+
+static inline void chash_i2(chash *h, void *k, void *value) {
+  if (memzero(k, h->sk) && memzero(value, h->sv)) {
+    printf("[%s] WARN: key and value set both to zero is not permitted. "
+           "This insertion has been ignored.\n",
+           __func__);
+    return;
+  }
   if (h->n == h->c)
     if (!chash_resize2(h, h->c << 1))
       exit(EXIT_FAILURE);
 
-  size_t i = hash_int(k) & h->mod;
-  printf("[%s] k:%3u h:%3zu\n", __func__, k, i);
+  size_t i = (h->khash)(k)&h->mod;
+  printf("[%s] k:%3u h:%3zu\n", __func__, *(uint32_t *)k, i);
   // for (size_t x = 0; x < h->c; x++) {
   //   printf("%3zu: kat:%20p\t*kat:%10u\tkat_null?:%d", x, chm_kat(h, x),
   //          *(uint32_t *)chm_kat(h, x), chm_kat_null(h, x));
@@ -142,7 +171,7 @@ static inline void chash_i2(chash *h, key_ty k, void *value) {
   while (
       // !(chm_kat_null(h, i))
       !memzero(chm_kat(h, i), h->sk) &&
-      !keql(chm_kat(h, i), &k)
+      !(h->keql)(chm_kat(h, i), k)
       // chm_kat(h, i) != k
       && i < h->c
       // chm_vat(h, i)
@@ -152,19 +181,21 @@ static inline void chash_i2(chash *h, key_ty k, void *value) {
     i = (i + 1) & h->mod;
   }
 
-  printf("\tinserted k:%u -> %zu\n", k, i);
+  printf("\tinserted k:%u -> %zu\n", *(uint32_t *)k, i);
   // printf("i = %zu\n", i);
   // chm_kat(h, i) = k;
-  memcpy(chm_kat(h, i), &k, h->sk);
+  memcpy(chm_kat(h, i), k, h->sk);
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
 }
 
+#define chash_ikl(h, k, value) chash_i2((h), &(typeof((k))){(k)}, (value))
+
 static inline void **chash_g(chash *h, key_ty k) {
   printf("[%s] k:%5u\n", __func__, k);
-  size_t i = hash_int(k) & h->mod;
+  size_t i = (h->khash)(&k) & h->mod;
   size_t last = i;
-  while (!keql(chm_kat(h, i), &k)) {
+  while (!(h->keql)(chm_kat(h, i), &k)) {
     i = (i + 1) & h->mod;
     if (i == last)
       return NULL;
@@ -189,9 +220,9 @@ static inline void **chash_g(chash *h, key_ty k) {
 // }
 
 static inline void chash_d2(chash *h, key_ty k) {
-  size_t i = hash_int(k) & h->mod;
+  size_t i = (h->khash)(&k) & h->mod;
   size_t last = i;
-  while (!keql(chm_kat(h, i), &k)) {
+  while (!(h->keql)(chm_kat(h, i), &k)) {
     i = (i + 1) & h->mod;
     if (i == last)
       return;
@@ -219,8 +250,7 @@ static inline void chash_d2(chash *h, key_ty k) {
   //  only if the map if full
   while (j != i &&
          !(memzero(chm_kat(h, j), h->sk) && memzero(chm_vat(h, j), h->sv))) {
-    // HACK: this need to be changed to get an actual hash func
-    size_t hj = hash_int(*(uint32_t *)chm_kat(h, j)) & h->mod;
+    size_t hj = (h->khash)(chm_kat(h, j)) & h->mod;
     // printf("\t[i:%2zu] j:%2zu, not null\n", i, j);
     // printf("\t\thj = %zu\n", hj);
     // printf("\t\tj<i = %d\n", j < i);
@@ -275,7 +305,7 @@ static inline size_t chash_resize2(chash *h, size_t nmemb) {
     if (!(memzero(s_kat(oks, i, h->sk), h->sk) &&
           memzero(s_vat(ovs, i, h->sv), h->sv)))
       // HACK: change this to actual key
-      chash_i2(h, *(uint32_t *)s_kat(oks, i, h->sk), s_vat(ovs, i, h->sv));
+      chash_i2(h, s_kat(oks, i, h->sk), s_vat(ovs, i, h->sv));
   }
   FREE(oks);
   FREE(ovs);
