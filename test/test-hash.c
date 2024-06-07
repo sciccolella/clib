@@ -25,9 +25,10 @@ typedef struct {
 
 #define print_structest_debug2(hz)                                             \
   for (size_t i = 0; i < (hz)->c; i++) {                                       \
-    printf("%3zu: %10d %20p", i, (hz)->ks[i], ((structest **)hz->vs)[i]);      \
+    printf("%3zu: %10d (h:%2zu) %20p", i, ((uint32_t *)(hz)->ks)[i],           \
+           hash_int(((uint32_t *)(hz)->ks)[i]), ((structest **)hz->vs)[i]);    \
     if (((structest **)hz->vs)[i])                                             \
-      printf(" -> {%d, %lu}", ((structest **)hz->vs)[i]->x,                       \
+      printf(" -> {%d, %lu}", ((structest **)hz->vs)[i]->x,                    \
              ((structest **)hz->vs)[i]->y);                                    \
     puts("");                                                                  \
   }
@@ -64,28 +65,62 @@ int main(int argc, char *argv[]) {
   // }
   // return EXIT_SUCCESS;
 
-  chash *hz = chash_init(sizeof(structest *), 5);
+  chash *hz = chash_init(sizeof(uint32_t), sizeof(structest *));
   structest *t1 = malloc(sizeof *t1);
-  t1->x = 21;
-  t1->y = 22;
+  t1->x = 20;
+  t1->y = 20;
   structest *t2 = malloc(sizeof *t2);
-  t2->x = 11;
-  t2->y = 12;
-  structest *t3 = malloc(sizeof *t3);
-  t3->x = 1;
-  t3->y = 2;
+  t2->x = 2;
+  t2->y = 2;
+  structest *t23 = &((structest){23, 23});
+  structest *t25 = &((structest){25, 25});
+  structest *t27 = &((structest){27, 27});
+  structest *t29 = &((structest){29, 29});
+  structest *t30 = &((structest){30, 30});
+  structest *t31 = &((structest){31, 31});
+  structest *t0 = &((structest){0, 0});
 
-  printf("hz.s = %zu\n", hz->s);
+  printf("hz.s = %zu\n", hz->sv);
   chash_i2(hz, 20, &t1);
   // chasht_i(hz, 21, structest *, t2);
-  chash_i2(hz, 23, &t1);
-  chash_i2(hz, 25, &t1);
-  chash_i2(hz, 2, &t1);
-  chash_i2(hz, 27, &t1);
-  chash_i2(hz, 29, &t1);
-  chash_i2(hz, 30, &t1);
-  chash_i2(hz, 31, &t1);
+  chash_i2(hz, 23, &t23);
+  chash_i2(hz, 25, &t25);
+  chash_i2(hz, 2, &t2);
+  chash_i2(hz, 27, &t27);
+  chash_i2(hz, 29, &t29);
+  // chash_i2(hz, 30, &t30);
+  chash_i2(hz, 31, &t31);
+  chash_i2(hz, 0, &t0);
 
+  // // NOTE: this is a weird and very specific ordering of the keys
+  // // to force a circular insertion/deletion
+  //
+  // chash_i2(hz, 18, &t1);
+  // // chasht_i(hz, 21, structest *, t2);
+  // chash_i2(hz, 21, &t23);
+  // chash_i2(hz, 2, &t2);
+  // chash_i2(hz, 5, &t25);
+  // chash_i2(hz, 8, &t27);
+  // chash_i2(hz, 14, &t29);
+  // // chash_i2(hz, 30, &t30);
+  // chash_i2(hz, 17, &t31);
+  // chash_i2(hz, 20, &t0);
+  //
+  // chash_d2(hz, 21);
+  // chash_i2(hz, 23, &t23);
+
+  print_structest_debug2(hz);
+
+  // structest *getted = *(structest**)chash_g(hz, 1);
+  // structest *gg = *getted;
+  structest *getted = chash_gt(hz, 23, structest*);
+  printf("getted = %p\n", getted);
+  if(getted)
+    printf("{%3d, %3lu}\n", getted->x, getted->y);
+  else
+   puts("NULL");
+  puts("DELETE 23");
+  chash_d2(hz, 23);
   print_structest_debug2(hz);
 
   // structest *hz_v20 = *(structest **)chash_g(&hz, 20);
@@ -104,14 +139,19 @@ int main(int argc, char *argv[]) {
   chash_d2(hz, 25);
   print_structest_debug2(hz);
   puts("INSERT 31");
-  chash_i2(hz, 31, &t1);
+  chash_i2(hz, 31, &t31);
   print_structest_debug2(hz);
 
   printf("h = %p\n", hz);
-  size_t done = chash_resize2(hz, 15);
+
+  size_t done = chash_resize2(hz, 1 << 4);
   printf("done = %zu\n", done);
   printf("h->ks = %p\n", hz->ks);
   printf("h = %p\n", hz);
+  print_structest_debug2(hz);
+
+  done = chash_resize2(hz, 1 << 3);
+  printf("done = %zu\n", done);
   print_structest_debug2(hz);
   // void *tomb = malloc(hz.s);
   // tomb = TOMBSTONE;
@@ -153,7 +193,6 @@ int main(int argc, char *argv[]) {
 
   free(t1);
   free(t2);
-  free(t3);
   chash_destroy(hz);
   return EXIT_SUCCESS;
 }
