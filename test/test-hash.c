@@ -33,8 +33,19 @@ typedef struct {
     puts("");                                                                  \
   }
 
-#define vlit(type, value)                                                      \
-  &(type) { (value) }
+#define print_int_debug(hx)                                                    \
+  for (size_t i = 0; i < (hx)->c; i++) {                                       \
+    printf("%3zu: %10d (h:%2zu) %20u", i, *(uint32_t *)chm_kat(hx, i),         \
+           (hx->khash)(chm_kat(hx, i)), *(uint32_t *)chm_vat(hx, i));          \
+    printf("\t%p", (uint32_t *)chm_vat(hx, i));                                \
+    /* if (((structest **)hx->vs)[i]) */                                       \
+    /* printf(" -> {%d, %lu}", ((structest **)hx->vs)[i]->x, */                \
+    /* ((structest **)hx->vs)[i]->y); */                                       \
+    puts("");                                                                  \
+  };
+
+#define vlit(v)                                                                \
+  &(typeof((v))) { (v) }
 int main(int argc, char *argv[]) {
   // size_t s = 4;
   // void *xx = malloc(10 * s);
@@ -80,17 +91,19 @@ int main(int argc, char *argv[]) {
   structest *t31 = &((structest){31, 31});
   structest *t0 = &((structest){0, 0});
 
+  uint32_t k23 = 23;
   printf("hz.s = %zu\n", hz->sv);
-  chash_i2(hz, 20, &t1);
-  // chasht_i(hz, 21, structest *, t2);
-  chash_i2(hz, 23, &t23);
-  chash_i2(hz, 25, &t25);
-  chash_i2(hz, 2, &t2);
-  chash_i2(hz, 27, &t27);
-  chash_i2(hz, 29, &t29);
+  chash_ikl(hz, 20, &t1);
+  chash_i2(hz, &k23, &t23);
+  chash_ikl(hz, 25, &t25);
+  chash_ikl(hz, 2, &t2);
+  chash_ikl(hz, 27, &t27);
+  chash_ikl(hz, 29, &t29);
   // chash_i2(hz, 30, &t30);
-  chash_i2(hz, 31, &t31);
-  chash_i2(hz, 0, &t0);
+  chash_ikl(hz, 31, &t31);
+  chash_ikl(hz, 0, &t0);
+
+  print_structest_debug2(hz);
 
   // // NOTE: this is a weird and very specific ordering of the keys
   // // to force a circular insertion/deletion
@@ -113,12 +126,12 @@ int main(int argc, char *argv[]) {
 
   // structest *getted = *(structest**)chash_g(hz, 1);
   // structest *gg = *getted;
-  structest *getted = chash_gt(hz, 23, structest*);
+  structest *getted = chash_gt(hz, 23, structest *);
   printf("getted = %p\n", getted);
-  if(getted)
+  if (getted)
     printf("{%3d, %3lu}\n", getted->x, getted->y);
   else
-   puts("NULL");
+    puts("NULL");
   puts("DELETE 23");
   chash_d2(hz, 23);
   print_structest_debug2(hz);
@@ -139,7 +152,7 @@ int main(int argc, char *argv[]) {
   chash_d2(hz, 25);
   print_structest_debug2(hz);
   puts("INSERT 31");
-  chash_i2(hz, 31, &t31);
+  chash_ikl(hz, 31, &t31);
   print_structest_debug2(hz);
 
   printf("h = %p\n", hz);
@@ -194,5 +207,50 @@ int main(int argc, char *argv[]) {
   free(t1);
   free(t2);
   chash_destroy(hz);
+
+  puts("------------------------------------------------");
+  puts("UINT32");
+
+  chash *hx = chash_init(sizeof(uint32_t), sizeof(uint32_t));
+  chash_ikl(hx, 21, vlit(22));
+  chash_ikl(hx, 25, vlit(25));
+  chash_ikl(hx, 2, vlit(2));
+  chash_ikl(hx, 27, vlit(27));
+  chash_ikl(hx, 29, vlit(29));
+  chash_ikl(hx, 31, vlit(31));
+  // NOTE: this will be ignored. Both key and value of 0 is not permitted.
+  chash_ikl(hx, 0, vlit(0));
+  chash_ikl(hx, 3, vlit(3));
+  print_int_debug(hx);
+
+  uint32_t *igetted = (uint32_t*)chash_g(hz, 25);
+  printf("igetted = %p -> ", igetted);
+  if (igetted)
+    printf("%u\n", *igetted);
+  else
+    puts("NULL");
+  igetted = (uint32_t*)chash_g(hz, 26);
+  printf("igetted = %p -> ", igetted);
+  if (igetted)
+    printf("%u\n", *igetted);
+  else
+    puts("NULL");
+  puts("DELETE 23");
+  chash_d2(hz, 25);
+
+  print_int_debug(hx);
+  puts("INSERT 31");
+  chash_ikl(hz, 31, vlit(32));
+  print_int_debug(hx);
+
+  printf("h = %p\n", hz);
+
+  done = chash_resize2(hx, 1 << 4);
+  printf("done = %zu\n", done);
+  print_int_debug(hx);
+
+  done = chash_resize2(hx, 1 << 3);
+  printf("done = %zu\n", done);
+  print_int_debug(hx);
   return EXIT_SUCCESS;
 }
