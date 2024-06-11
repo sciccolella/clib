@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
   uint32_t k23 = 23;
   printf("hz.s = %zu\n", hz->sv);
   chash_ikl(hz, 20, &t1);
-  chash_i2(hz, &k23, &t23);
+  chash_i(hz, &k23, &t23);
   chash_ikl(hz, 25, &t25);
   // chash_ikl(hz, 2, &t2);
   // chash_ikl(hz, 27, &t27);
@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
   else
     puts("NULL");
   puts("DELETE 23");
-  chash_d2(hz, 23);
+  chash_d(hz, 23);
   print_structest_debug2(hz);
 
   // structest *hz_v20 = *(structest **)chash_g(&hz, 20);
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 
   // chasht_d(hz, 21, structest *);
   puts("DELETE 25");
-  chash_d2(hz, 25);
+  chash_d(hz, 25);
   print_structest_debug2(hz);
   puts("INSERT 31");
   chash_ikl(hz, 31, &t31);
@@ -158,13 +158,13 @@ int main(int argc, char *argv[]) {
 
   printf("h = %p\n", hz);
 
-  size_t done = chash_resize2(hz, 1 << 4);
+  size_t done = chash_resize(hz, 1 << 4);
   printf("done = %zu\n", done);
   // printf("h->ks = %p\n", hz->ks);
   printf("h = %p\n", hz);
   print_structest_debug2(hz);
 
-  done = chash_resize2(hz, 1 << 3);
+  done = chash_resize(hz, 1 << 3);
   printf("done = %zu\n", done);
   print_structest_debug2(hz);
   // void *tomb = malloc(hz.s);
@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
   else
     puts("NULL");
   puts("DELETE 23");
-  chash_d2(hz, 25);
+  chash_d(hz, 25);
 
   print_int_debug(hx);
   puts("INSERT 31");
@@ -246,11 +246,11 @@ int main(int argc, char *argv[]) {
 
   printf("h = %p\n", hz);
 
-  done = chash_resize2(hx, 1 << 4);
+  done = chash_resize(hx, 1 << 4);
   printf("done = %zu\n", done);
   print_int_debug(hx);
 
-  done = chash_resize2(hx, 1 << 3);
+  done = chash_resize(hx, 1 << 3);
   printf("done = %zu\n", done);
   print_int_debug(hx);
   return EXIT_SUCCESS;

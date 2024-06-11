@@ -37,7 +37,7 @@ static inline int keql(void *a, void *b) {
   // printf("[%s] A:%10u B:%10u eql?: %d\n", __func__, A, B, A == B);
   return A == B;
 }
-static inline size_t chash_resize2(chash *h, size_t nmemb);
+static inline size_t chash_resize(chash *h, size_t nmemb);
 
 [[nodiscard]] static inline chash *chash_init(size_t ksize, size_t vsize) {
   size_t nmemb = 1 << 3;
@@ -110,7 +110,7 @@ static inline int memzero(void *m, size_t s) {
   return r == 0;
 }
 
-static inline void chash_i2(chash *h, void *k, void *value) {
+static inline void chash_i(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
     printf("[%s] WARN: key and value set both to zero is not permitted. "
            "This insertion has been ignored.\n",
@@ -118,7 +118,7 @@ static inline void chash_i2(chash *h, void *k, void *value) {
     return;
   }
   if (h->n == h->c)
-    if (!chash_resize2(h, h->c << 1))
+    if (!chash_resize(h, h->c << 1))
       exit(EXIT_FAILURE);
 
   size_t i = (h->khash)(k)&h->mod;
@@ -149,7 +149,7 @@ static inline void chash_i2(chash *h, void *k, void *value) {
   h->n++;
 }
 
-#define chash_ikl(h, k, value) chash_i2((h), &(typeof((k))){(k)}, (value))
+#define chash_ikl(h, k, value) chash_i((h), &(typeof((k))){(k)}, (value))
 
 static inline void **chash_g(chash *h, key_ty k) {
   printf("[%s] k:%5u\n", __func__, k);
@@ -168,7 +168,7 @@ static inline void **chash_g(chash *h, key_ty k) {
     (g) ? *g : NULL;                                                           \
   })
 
-static inline void chash_d2(chash *h, key_ty k) {
+static inline void chash_d(chash *h, key_ty k) {
   size_t i = (h->khash)(&k) & h->mod;
   size_t last = i;
   while (!(h->keql)(chm_kat(h, i), &k)) {
@@ -204,7 +204,7 @@ static inline void chash_d2(chash *h, key_ty k) {
   h->n--;
 }
 
-static inline size_t chash_resize2(chash *h, size_t nmemb) {
+static inline size_t chash_resize(chash *h, size_t nmemb) {
   printf("[%s] nmemb = %zu\n", __func__, nmemb);
   if (nmemb < h->n)
     return 0;
@@ -220,7 +220,7 @@ static inline size_t chash_resize2(chash *h, size_t nmemb) {
     if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
           memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
       // HACK: change this to actual key
-      chash_i2(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+      chash_i(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
   }
   FREE(ods);
   h->c = nmemb;
