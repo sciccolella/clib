@@ -25,14 +25,16 @@ typedef struct {
 
 #define print_structest_debug2(hz)                                             \
   for (size_t i = 0; i < (hz)->c; i++) {                                       \
-    printf("%3zu: %10d (h:%2zu) %20p", i, ((uint32_t *)(hz)->ks)[i],           \
-           hash_int(((uint32_t *)(hz)->ks)[i]), ((structest **)hz->vs)[i]);    \
-    if (((structest **)hz->vs)[i])                                             \
-      printf(" -> {%d, %lu}", ((structest **)hz->vs)[i]->x,                    \
-             ((structest **)hz->vs)[i]->y);                                    \
+    printf("%3zu: %10d (h:%2zu) %20p", i, *(uint32_t *)chm_kat(hz, i),         \
+           hash_int(*(uint32_t *)chm_kat(hz, i)),                              \
+           (structest **)chm_vat(hz, i));                                      \
+    structest **vi = (structest **)chm_vat(hz, i);                             \
+    if (*vi)                                                                   \
+      printf(" -> {%d, %lu}", (*vi)->x, (*vi)->y);                             \
     puts("");                                                                  \
   }
 
+// #define print_structest_debug2(hz) puts("todo")
 #define print_int_debug(hx)                                                    \
   for (size_t i = 0; i < (hx)->c; i++) {                                       \
     printf("%3zu: %10d (h:%2zu) %20u", i, *(uint32_t *)chm_kat(hx, i),         \
@@ -96,10 +98,9 @@ int main(int argc, char *argv[]) {
   chash_ikl(hz, 20, &t1);
   chash_i2(hz, &k23, &t23);
   chash_ikl(hz, 25, &t25);
-  chash_ikl(hz, 2, &t2);
-  chash_ikl(hz, 27, &t27);
+  // chash_ikl(hz, 2, &t2);
+  // chash_ikl(hz, 27, &t27);
   chash_ikl(hz, 29, &t29);
-  // chash_i2(hz, 30, &t30);
   chash_ikl(hz, 31, &t31);
   chash_ikl(hz, 0, &t0);
 
@@ -159,7 +160,7 @@ int main(int argc, char *argv[]) {
 
   size_t done = chash_resize2(hz, 1 << 4);
   printf("done = %zu\n", done);
-  printf("h->ks = %p\n", hz->ks);
+  // printf("h->ks = %p\n", hz->ks);
   printf("h = %p\n", hz);
   print_structest_debug2(hz);
 
@@ -223,13 +224,13 @@ int main(int argc, char *argv[]) {
   chash_ikl(hx, 3, vlit(3));
   print_int_debug(hx);
 
-  uint32_t *igetted = (uint32_t*)chash_g(hz, 25);
+  uint32_t *igetted = (uint32_t *)chash_g(hz, 25);
   printf("igetted = %p -> ", igetted);
   if (igetted)
     printf("%u\n", *igetted);
   else
     puts("NULL");
-  igetted = (uint32_t*)chash_g(hz, 26);
+  igetted = (uint32_t *)chash_g(hz, 26);
   printf("igetted = %p -> ", igetted);
   if (igetted)
     printf("%u\n", *igetted);
