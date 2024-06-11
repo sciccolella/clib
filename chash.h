@@ -24,8 +24,6 @@ typedef struct {
   size_t c;
   size_t mod;
   void *ds;
-  // void *ks;
-  // void *vs;
 } chash;
 
 static inline size_t hash_int(key_ty x) { return x % 3; }
@@ -55,14 +53,10 @@ static inline size_t chash_resize2(chash *h, size_t nmemb);
   h->c = nmemb;
   h->mod = (h->c) - 1;
   h->ds = calloc(nmemb, h->sk + h->sv);
-  // h->ks = calloc(nmemb, sizeof(key_ty));
-  // h->vs = calloc(nmemb, h->sv);
   return h;
 }
 
 static inline void chash_destroy(chash *h) {
-  // FREE(h->ks);
-  // FREE(h->vs);
   FREE(h->ds);
   FREE(h);
 }
@@ -101,24 +95,11 @@ static inline void chash_destroy(chash *h) {
 #define s_vat(vs, i, ksize, vsize)                                             \
   (void *)&((unsigned char *)(vs))[s_vatix((i), (ksize), (vsize))]
 
-// TODO: FIXME
+// TODO:document
 #define s_kat_null(ks, i, ksize, vsize)                                        \
   s_kat((ks), (i), (ksize), (vsize)) == NULL
+// TODO:document
 #define chm_kat_null(hm, i) chm_kat((hm), i) == NULL
-
-// [[deprecated]] static inline void chash_i(chash *h, key_ty k, void *value) {
-//   size_t i = hash_int(k) % h->c;
-//   printf("key = %d, hash = %zu\n", k, i); // linear probing
-//   // while (chm_vat(h, i) && chm_kat(h, i) != k)
-//   while (chm_vat(h, i) && memcmp((void *)&chm_vat(h, i), &TOMBSTONE, h->s) &&
-//          chm_kat(h, i) != k && i < h->c)
-//     i++;
-//
-//   // printf("i = %zu\n", i);
-//   chm_kat(h, i) = k;
-//   memcpy(&chm_vat(h, i), value, h->s);
-//   h->n++;
-// }
 
 static inline int memzero(void *m, size_t s) {
   size_t r = 0;
@@ -128,22 +109,6 @@ static inline int memzero(void *m, size_t s) {
   }
   return r == 0;
 }
-
-#define plit(v)                                                                \
-  _Generic((v),                                                                \
-      uint8_t: &(uint8_t){(v)},                                                \
-      uint16_t: &(uint16_t){(v)},                                              \
-      uint32_t: &(uint32_t){(v)},                                              \
-      uint64_t: &(uint64_t){(v)},                                              \
-      int8_t: &(int8_t){(v)},                                                  \
-      int16_t: &(int16_t){(v)},                                                \
-      int32_t: &(int32_t){(v)},                                                \
-      int64_t: &(int64_t){(v)},                                                \
-      char: &(char){(v)},                                                      \
-      float: &(float){(v)},                                                    \
-      double: &(double){(v)},                                                  \
-      long double: &(long double){(v)},                                        \
-      default: (v))
 
 static inline void chash_i2(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
@@ -168,15 +133,10 @@ static inline void chash_i2(chash *h, void *k, void *value) {
   //   // printf("\t%d", memcmp(chm_kat(h, x), NULL, h->sk));
   //   puts("");
   // }
-  // printf("key = %d, hash = %zu\n", k, i); // linear probing
-  // while (!(chm_kat_null(h, i)) && chm_kat(h, i) != k && i < h->c &&
   while (
-      // !(chm_kat_null(h, i))
       !memzero(chm_kat(h, i), h->sk) &&
       !(h->keql)(chm_kat(h, i), k)
-      // chm_kat(h, i) != k
       && i < h->c
-      // chm_vat(h, i)
       && !memzero(chm_vat(h, i), h->sv)
 
   ) {
@@ -184,8 +144,6 @@ static inline void chash_i2(chash *h, void *k, void *value) {
   }
 
   printf("\tinserted k:%u -> %zu\n", *(uint32_t *)k, i);
-  // printf("i = %zu\n", i);
-  // chm_kat(h, i) = k;
   memcpy(chm_kat(h, i), k, h->sk);
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
@@ -210,17 +168,6 @@ static inline void **chash_g(chash *h, key_ty k) {
     (g) ? *g : NULL;                                                           \
   })
 
-// [[deprecated]] static inline void chash_d(chash *h, key_ty k) {
-//   size_t i = hash_int(k) % h->c;
-//   while (chm_kat(h, i) != k && i < h->c)
-//     i++;
-//   /* TODO: reset key to proper null value */
-//
-//   chm_kat(h, i) = 1;
-//   memcpy((void *)&chm_vat(h, i), &TOMBSTONE, h->s);
-//   h->n--;
-// }
-
 static inline void chash_d2(chash *h, key_ty k) {
   size_t i = (h->khash)(&k) & h->mod;
   size_t last = i;
@@ -230,24 +177,10 @@ static inline void chash_d2(chash *h, key_ty k) {
       return;
   }
 
-  // for (size_t x = 0; x < h->c; x++) {
-  //   printf("%3zu: kat:%20p\t*kat:%10u\t", x, chm_kat(h, x),
-  //          *(uint32_t *)chm_kat(h, x));
-  //
-  //   printf("\t!k_mem0:%d", !memzero(chm_kat(h, x), h->sk));
-  //   printf("\t!v_mem0:%d", !memzero(chm_vat(h, x), h->sv));
-  //   printf("\twhile:%d",
-  //          memzero(chm_kat(h, x), h->sk) && memzero(chm_vat(h, x),
-  //          h->sv));
-  //   puts("");
-  // }
-  // printf("key = %d, hash = %zu\n", k, i); // linear probing
   size_t j = (i + 1) & h->mod;
   //  NOTE: if i arrives to last position, then j will do another round
   //  across the array, this is not unexpected since it may be possible that
   //  a value has been inserted considerint it as a circular array.
-  //  If we avoid this option (also in insertion) then the cycle can be stopped
-  //  when i reaches h->c.
   //  As it is, this cycle is "wasting" at most h->c iterations,
   //  only if the map if full
   while (j != i &&
@@ -261,7 +194,6 @@ static inline void chash_d2(chash *h, key_ty k) {
     if ((j < i) ^ (hj <= i) ^ (hj > j)) {
       printf("[%s], substuting %2zu<-%2zu\n", __func__, i, j);
       memcpy(chm_kat(h, i), chm_kat(h, j), h->sk);
-      // chm_kat(h, i) = chm_kat(h, j);
       memcpy(chm_vat(h, i), chm_vat(h, j), h->sv);
       i = j;
     }
@@ -272,39 +204,15 @@ static inline void chash_d2(chash *h, key_ty k) {
   h->n--;
 }
 
-// [[deprecated]] static inline size_t chash_resize(chash **h, size_t size) {
-//   printf("[%s]\n", __func__);
-//   if (size < (*h)->c)
-//     return 0;
-//
-//   chash *h_ = chash_init((*h)->s, size);
-//   for (size_t i = 0; i < (*h)->c; i++) {
-//     printf("i = %zu\n", i);
-//     if (!(chm_kat_null((*h), i)))
-//       chash_i2(h_, chm_kat((*h), i), chm_vat((*h), i));
-//   }
-//   chash_destroy(*h);
-//   *h = h_;
-//   return size;
-// }
-
 static inline size_t chash_resize2(chash *h, size_t nmemb) {
   printf("[%s] nmemb = %zu\n", __func__, nmemb);
   if (nmemb < h->n)
     return 0;
 
-  // key_ty *nks = calloc(nmemb, sizeof(key_ty));
-  // void *nvs = calloc(nmemb, h->sv);
-  // if (!nks || !nvs)
-  //   return 0;
   void *nds = calloc(nmemb, h->sk + h->sv);
   if (!nds)
     return 0;
 
-  // key_ty *oks = h->ks;
-  // void *ovs = h->vs;
-  // h->ks = nks;
-  // h->vs = nvs;
   void *ods = h->ds;
   h->ds = nds;
   h->n = 0;
@@ -314,68 +222,10 @@ static inline size_t chash_resize2(chash *h, size_t nmemb) {
       // HACK: change this to actual key
       chash_i2(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
   }
-  // FREE(oks);
-  // FREE(ovs);
   FREE(ods);
   h->c = nmemb;
   h->mod = h->c - 1;
   return nmemb;
 }
-
-/*
- * chm typed value at index:
- * Get the value the hashmap `h` at position `i`
- * as `type *`
- */
-#define chmt_vat(h, type, i) ((type *)(h)->vs)[(i)]
-#define chasht_i(hm, k, vtype, value)                                          \
-  do {                                                                         \
-    size_t i = hash_int((k)) % (hm).n;                                         \
-    printf("hash = %zu\n", i);                                                 \
-    /* while (chmt_vat(&(hm), vtype, i) && chm_kat(&(hm), i) != (k)) */        \
-    while (chmt_vat(&(hm), vtype, i) &&                                        \
-           chmt_vat(&(hm), vtype, i) != TOMBSTONE &&                           \
-           chm_kat(&(hm), i) != (k) && i < (hm).n)                             \
-      i++;                                                                     \
-    printf("i = %zu\n", i);                                                    \
-    chm_kat(&(hm), i) = k;                                                     \
-    chmt_vat(&(hm), vtype, i) = value;                                         \
-    (hm).c++;                                                                  \
-  } while (0)
-
-#define chasht_g(hm, k, vtype, value)                                          \
-  do {                                                                         \
-    size_t i = hash_int((k)) % (hm).n;                                         \
-    while (chm_kat(&(hm), i) != k && !(chm_kat_null(&(hm), i)) && i < (hm).n)  \
-      i++;                                                                     \
-    if (chm_kat_null(&(hm), i))                                                \
-      (value) = (vtype)0;                                                      \
-    else                                                                       \
-      (value) = ((vtype *)(hm).vs)[i];                                         \
-  } while (0)
-
-#define chasht_d(hm, k, vtype)                                                 \
-  do {                                                                         \
-    size_t i = hash_int((k)) % (hm).n;                                         \
-    while (chm_kat(&(hm), i) != k && i < (hm).n)                               \
-      i++;                                                                     \
-    /* TODO: reset key to proper null value */                                 \
-    chm_kat(&(hm), i) = 0;                                                     \
-    chmt_vat(&(hm), vtype, i) = TOMBSTONE;                                     \
-    (hm).c--;                                                                  \
-  } while (0)
-
-#define chasht_resize(hm, vtype, size)                                         \
-  do {                                                                         \
-    size_t newc = size;                                                        \
-    if ((hm).n < newc) {                                                       \
-      chash nhm = chash_init((hm).s, newc);                                    \
-      for (size_t x = 0; x < (hm).n; x++) {                                    \
-        chasht_i(nhm, chm_kat(&(hm), x), vtype, chmt_vat(&(hm), vtype, x));    \
-      }                                                                        \
-      /* TODO: free hm */                                                      \
-      hm = nhm;                                                                \
-    }                                                                          \
-  } while (0)
 
 #endif
