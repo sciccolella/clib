@@ -23,8 +23,9 @@ typedef struct {
   size_t n;
   size_t c;
   size_t mod;
-  void *ks;
-  void *vs;
+  void *ds;
+  // void *ks;
+  // void *vs;
 } chash;
 
 static inline size_t hash_int(key_ty x) { return x % 3; }
@@ -53,55 +54,56 @@ static inline size_t chash_resize2(chash *h, size_t nmemb);
   h->n = 0;
   h->c = nmemb;
   h->mod = (h->c) - 1;
-  h->ks = calloc(nmemb, sizeof(key_ty));
-  h->vs = calloc(nmemb, h->sv);
-  // h->ks = malloc(h->sk * nmemb);
-  // h->vs = malloc(h->sv * nmemb);
+  h->ds = calloc(nmemb, h->sk + h->sv);
+  // h->ks = calloc(nmemb, sizeof(key_ty));
+  // h->vs = calloc(nmemb, h->sv);
   return h;
 }
 
 static inline void chash_destroy(chash *h) {
-  FREE(h->ks);
-  FREE(h->vs);
+  // FREE(h->ks);
+  // FREE(h->vs);
+  FREE(h->ds);
   FREE(h);
 }
 
 /* chm value at index:
  * Get the index in the data structure of the hashmap `h`
  * of the value at position `i` */
-#define chm_vatix(h, i) ((i) * (h)->sv)
+#define chm_vatix(h, i) ((i) * ((h)->sk + (h)->sv) + (h)->sk)
 
 /* chm key at index:
  * Get the index in the data structure of the hashmap `h`
  * of the key at position `i` */
-#define chm_katix(h, i) ((i) * (h)->sk)
+#define chm_katix(h, i) ((i) * ((h)->sk + (h)->sv))
 
 /* chm value at as void*:
  * Get the value the hashmap `h` at position `i` as `void*` */
-#define chm_vat(h, i) (void *)&((unsigned char *)(h)->vs)[chm_vatix((h), (i))]
+#define chm_vat(h, i) (void *)&((unsigned char *)(h)->ds)[chm_vatix((h), (i))]
 
 /* chm key at index:
  * Get the key the hashmap `h` at position `i` as `key_t` */
-#define chm_kat(h, i) (void *)&((unsigned char *)(h)->ks)[chm_katix((h), (i))]
+#define chm_kat(h, i) (void *)&((unsigned char *)(h)->ds)[chm_katix((h), (i))]
 
 /* sized value at index:
  * Get the index in the vector of the value of size `size` at position `i` */
-#define s_vatix(i, size) i *size
+#define s_vatix(i, ksize, vsize) i *(ksize + vsize) + ksize
 // TODO:document
-#define s_katix(i, size) i *size
+#define s_katix(i, ksize, vsize) i *(ksize + vsize)
 
 /* sized key at:
  * Get the key in `ks` at position `i` */
-#define s_kat(ks, i, size)                                                     \
-  (void *)&((unsigned char *)(ks))[s_katix((i), (size))]
+#define s_kat(ks, i, ksize, vsize)                                             \
+  (void *)&((unsigned char *)(ks))[s_katix((i), (ksize), (vsize))]
 
 /* sized vale at as void*:
  * Get the value of size `size` in `vs` at position `i` as void pointer */
-#define s_vat(vs, i, size)                                                     \
-  (void *)&((unsigned char *)(vs))[s_vatix((i), (size))]
+#define s_vat(vs, i, ksize, vsize)                                             \
+  (void *)&((unsigned char *)(vs))[s_vatix((i), (ksize), (vsize))]
 
 // TODO: FIXME
-#define s_kat_null(ks, i, size) s_kat((ks), (i), (size)) == NULL
+#define s_kat_null(ks, i, ksize, vsize)                                        \
+  s_kat((ks), (i), (ksize), (vsize)) == NULL
 #define chm_kat_null(hm, i) chm_kat((hm), i) == NULL
 
 // [[deprecated]] static inline void chash_i(chash *h, key_ty k, void *value) {
@@ -291,24 +293,30 @@ static inline size_t chash_resize2(chash *h, size_t nmemb) {
   if (nmemb < h->n)
     return 0;
 
-  key_ty *nks = calloc(nmemb, sizeof(key_ty));
-  void *nvs = calloc(nmemb, h->sv);
-  if (!nks || !nvs)
+  // key_ty *nks = calloc(nmemb, sizeof(key_ty));
+  // void *nvs = calloc(nmemb, h->sv);
+  // if (!nks || !nvs)
+  //   return 0;
+  void *nds = calloc(nmemb, h->sk + h->sv);
+  if (!nds)
     return 0;
 
-  key_ty *oks = h->ks;
-  void *ovs = h->vs;
-  h->ks = nks;
-  h->vs = nvs;
+  // key_ty *oks = h->ks;
+  // void *ovs = h->vs;
+  // h->ks = nks;
+  // h->vs = nvs;
+  void *ods = h->ds;
+  h->ds = nds;
   h->n = 0;
   for (size_t i = 0; i < h->c; i++) {
-    if (!(memzero(s_kat(oks, i, h->sk), h->sk) &&
-          memzero(s_vat(ovs, i, h->sv), h->sv)))
+    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
+          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
       // HACK: change this to actual key
-      chash_i2(h, s_kat(oks, i, h->sk), s_vat(ovs, i, h->sv));
+      chash_i2(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
   }
-  FREE(oks);
-  FREE(ovs);
+  // FREE(oks);
+  // FREE(ovs);
+  FREE(ods);
   h->c = nmemb;
   h->mod = h->c - 1;
   return nmemb;
