@@ -123,18 +123,18 @@ int main(int argc, char *argv[]) {
   // chash_d2(hz, 21);
   // chash_i2(hz, 23, &t23);
 
-  print_structest_debug2(hz);
+  // print_structest_debug2(hz);
 
   // structest *getted = *(structest**)chash_g(hz, 1);
   // structest *gg = *getted;
-  structest *getted = chash_gt(hz, 23, structest *);
+  structest *getted = chash_gt(hz, vlit(23), structest *);
   printf("getted = %p\n", getted);
   if (getted)
     printf("{%3d, %3lu}\n", getted->x, getted->y);
   else
     puts("NULL");
   puts("DELETE 23");
-  chash_d(hz, 23);
+  chash_d(hz, vlit(23));
   print_structest_debug2(hz);
 
   // structest *hz_v20 = *(structest **)chash_g(&hz, 20);
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 
   // chasht_d(hz, 21, structest *);
   puts("DELETE 25");
-  chash_d(hz, 25);
+  chash_d(hz, vlit(25));
   print_structest_debug2(hz);
   puts("INSERT 31");
   chash_ikl(hz, 31, &t31);
@@ -224,20 +224,20 @@ int main(int argc, char *argv[]) {
   chash_ikl(hx, 3, vlit(3));
   print_int_debug(hx);
 
-  uint32_t *igetted = (uint32_t *)chash_g(hz, 25);
+  uint32_t *igetted = (uint32_t *)chash_g(hz, vlit(25));
   printf("igetted = %p -> ", igetted);
   if (igetted)
     printf("%u\n", *igetted);
   else
     puts("NULL");
-  igetted = (uint32_t *)chash_g(hz, 26);
+  igetted = (uint32_t *)chash_g(hz, vlit(26));
   printf("igetted = %p -> ", igetted);
   if (igetted)
     printf("%u\n", *igetted);
   else
     puts("NULL");
-  puts("DELETE 23");
-  chash_d(hz, 25);
+  puts("DELETE 25");
+  chash_d(hz, vlit(25));
 
   print_int_debug(hx);
   puts("INSERT 31");

@@ -14,7 +14,6 @@
   } while (0)
 #endif
 
-typedef uint32_t key_ty;
 typedef struct {
   int (*keql)(void *, void *);
   size_t (*khash)(void *);
@@ -26,6 +25,7 @@ typedef struct {
   void *ds;
 } chash;
 
+typedef uint32_t key_ty;
 static inline size_t hash_int(key_ty x) { return x % 3; }
 static inline size_t hash_int2(void *x) {
   uint32_t X = *(uint32_t *)x;
@@ -34,7 +34,7 @@ static inline size_t hash_int2(void *x) {
 static inline int keql(void *a, void *b) {
   uint32_t A = *(uint32_t *)a;
   uint32_t B = *(uint32_t *)b;
-  // printf("[%s] A:%10u B:%10u eql?: %d\n", __func__, A, B, A == B);
+  printf("[%s] A:%10u B:%10u eql?: %d\n", __func__, A, B, A == B);
   return A == B;
 }
 static inline size_t chash_resize(chash *h, size_t nmemb);
@@ -133,11 +133,8 @@ static inline void chash_i(chash *h, void *k, void *value) {
   //   // printf("\t%d", memcmp(chm_kat(h, x), NULL, h->sk));
   //   puts("");
   // }
-  while (
-      !memzero(chm_kat(h, i), h->sk) &&
-      !(h->keql)(chm_kat(h, i), k)
-      && i < h->c
-      && !memzero(chm_vat(h, i), h->sv)
+  while (!memzero(chm_kat(h, i), h->sk) && !(h->keql)(chm_kat(h, i), k) &&
+         i < h->c && !memzero(chm_vat(h, i), h->sv)
 
   ) {
     i = (i + 1) & h->mod;
@@ -151,11 +148,11 @@ static inline void chash_i(chash *h, void *k, void *value) {
 
 #define chash_ikl(h, k, value) chash_i((h), &(typeof((k))){(k)}, (value))
 
-static inline void **chash_g(chash *h, key_ty k) {
-  printf("[%s] k:%5u\n", __func__, k);
-  size_t i = (h->khash)(&k) & h->mod;
+static inline void **chash_g(chash *h, void *k) {
+  printf("[%s] k:%5u\n", __func__, *(uint32_t *)k);
+  size_t i = (h->khash)(k) & h->mod;
   size_t last = i;
-  while (!(h->keql)(chm_kat(h, i), &k)) {
+  while (!(h->keql)(chm_kat(h, i), k)) {
     i = (i + 1) & h->mod;
     if (i == last)
       return NULL;
@@ -168,10 +165,10 @@ static inline void **chash_g(chash *h, key_ty k) {
     (g) ? *g : NULL;                                                           \
   })
 
-static inline void chash_d(chash *h, key_ty k) {
-  size_t i = (h->khash)(&k) & h->mod;
+static inline void chash_d(chash *h, void *k) {
+  size_t i = (h->khash)(k)&h->mod;
   size_t last = i;
-  while (!(h->keql)(chm_kat(h, i), &k)) {
+  while (!(h->keql)(chm_kat(h, i), k)) {
     i = (i + 1) & h->mod;
     if (i == last)
       return;
