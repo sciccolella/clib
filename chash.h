@@ -29,18 +29,31 @@ typedef uint32_t key_ty;
 static inline size_t hash_int(key_ty x) { return x % 3; }
 static inline size_t hash_int2(void *x) {
   uint32_t X = *(uint32_t *)x;
-  return X % 3;
+  // X ^= (X >> 33);
+  // X *= 0xff51afd7ed558ccd;
+  // X ^= (X >> 33);
+  // X *= 0xc4ceb9fe1a85ec53;
+  // X ^= (X >> 33);
+  X ^= X >> 16;
+  X *= 0x85ebca6b;
+  X ^= X >> 13;
+  X *= 0xc2b2ae35;
+  X ^= X >> 16;
+  return X;
+  // return X % 3;
+  // return X;
 }
 static inline int keql(void *a, void *b) {
   uint32_t A = *(uint32_t *)a;
   uint32_t B = *(uint32_t *)b;
-  printf("[%s] A:%10u B:%10u eql?: %d\n", __func__, A, B, A == B);
+  // printf("[%s] A:%10u B:%10u eql?: %d\n", __func__, A, B, A == B);
   return A == B;
 }
 static inline size_t chash_resize(chash *h, size_t nmemb);
 
 [[nodiscard]] static inline chash *chash_init(size_t ksize, size_t vsize) {
   size_t nmemb = 1 << 3;
+  // size_t nmemb = 1 << 10;
   chash *h = malloc(sizeof *h);
   if (!h)
     return NULL;
@@ -117,12 +130,13 @@ static inline void chash_i(chash *h, void *k, void *value) {
            __func__);
     return;
   }
-  if (h->n == h->c)
+  // if (h->n == h->c)
+  if (h->n >= ((double)h->c * 0.85))
     if (!chash_resize(h, h->c << 1))
       exit(EXIT_FAILURE);
 
   size_t i = (h->khash)(k)&h->mod;
-  printf("[%s] k:%3u h:%3zu\n", __func__, *(uint32_t *)k, i);
+  // printf("[%s] k:%3u h:%3zu\n", __func__, *(uint32_t *)k, i);
   // for (size_t x = 0; x < h->c; x++) {
   //   printf("%3zu: kat:%20p\t*kat:%10u\tkat_null?:%d", x, chm_kat(h, x),
   //          *(uint32_t *)chm_kat(h, x), chm_kat_null(h, x));
@@ -133,14 +147,16 @@ static inline void chash_i(chash *h, void *k, void *value) {
   //   // printf("\t%d", memcmp(chm_kat(h, x), NULL, h->sk));
   //   puts("");
   // }
-  while (!memzero(chm_kat(h, i), h->sk) && !(h->keql)(chm_kat(h, i), k) &&
-         i < h->c && !memzero(chm_vat(h, i), h->sv)
-
-  ) {
+  while (!memzero(chm_kat(h, i), h->sk) && !memzero(chm_vat(h, i), h->sv) &&
+         // !(h->keql)(chm_kat(h, i), k)
+         // !(*(uint32_t*)k == *(uint32_t*)chm_kat(h, i))
+         memcmp(k, chm_kat(h, i), h->sk))
+  // do not format
+  {
     i = (i + 1) & h->mod;
   }
 
-  printf("\tinserted k:%u -> %zu\n", *(uint32_t *)k, i);
+  // printf("\tinserted k:%u -> %zu\n", *(uint32_t *)k, i);
   memcpy(chm_kat(h, i), k, h->sk);
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
@@ -149,8 +165,8 @@ static inline void chash_i(chash *h, void *k, void *value) {
 #define chash_ikl(h, k, value) chash_i((h), &(typeof((k))){(k)}, (value))
 
 static inline void **chash_g(chash *h, void *k) {
-  printf("[%s] k:%5u\n", __func__, *(uint32_t *)k);
-  size_t i = (h->khash)(k) & h->mod;
+  // printf("[%s] k:%5u\n", __func__, *(uint32_t *)k);
+  size_t i = (h->khash)(k)&h->mod;
   size_t last = i;
   while (!(h->keql)(chm_kat(h, i), k)) {
     i = (i + 1) & h->mod;
@@ -189,7 +205,7 @@ static inline void chash_d(chash *h, void *k) {
     // printf("\t\thj <= i = %d\n", hj <= i);
     // printf("\t\thj>j = %d\n", hj > j);
     if ((j < i) ^ (hj <= i) ^ (hj > j)) {
-      printf("[%s], substuting %2zu<-%2zu\n", __func__, i, j);
+      // printf("[%s], substuting %2zu<-%2zu\n", __func__, i, j);
       memcpy(chm_kat(h, i), chm_kat(h, j), h->sk);
       memcpy(chm_vat(h, i), chm_vat(h, j), h->sv);
       i = j;
@@ -202,7 +218,7 @@ static inline void chash_d(chash *h, void *k) {
 }
 
 static inline size_t chash_resize(chash *h, size_t nmemb) {
-  printf("[%s] nmemb = %zu\n", __func__, nmemb);
+  // printf("[%s] nmemb = %zu\n", __func__, nmemb);
   if (nmemb < h->n)
     return 0;
 
