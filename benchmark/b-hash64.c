@@ -34,7 +34,7 @@ int main() {
   chash *ch = chash_init(sizeof(uint64_t), sizeof(uint64_t));
   for (size_t i = 0; i < MAX; i++) {
     key = rand(), value = rand();
-    chash_ikl(ch, key, vlit(value));
+    chash_il(ch, vlit(key), vlit(value));
   }
   printtrace_diffnow(&s, "clib");
   if (getrusage(RUSAGE_SELF, &rus) == 0)

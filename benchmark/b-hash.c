@@ -1,10 +1,9 @@
 #include "../chash.h"
-#include "tracing.h"
 #include "khash.h"
+#include "tracing.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/resource.h>
-
 
 #define vlit(v)                                                                \
   &(__typeof__((v))) { (v) }
@@ -17,9 +16,8 @@ int main() {
   khash_t(32) *h = kh_init(32);
 
   trace_t s;
-  size_t MAX = 10000000;
+  size_t MAX = 5000000;
 
-  struct rusage rus;
   s = trace_start();
   for (size_t i = 0; i < MAX; i++) {
     key = rand(), value = rand();
@@ -27,27 +25,22 @@ int main() {
     kh_value(h, k) = value;
   }
   printtrace_diffnow(&s, "khash");
-  if (getrusage(RUSAGE_SELF, &rus) == 0)
-    fprintf(stderr, "[maxrss:build] %ld (kbytes)\n", rus.ru_maxrss);
 
   s = trace_start();
   chash *ch = chash_init(sizeof(uint32_t), sizeof(uint32_t));
   for (size_t i = 0; i < MAX; i++) {
     key = rand(), value = rand();
-    chash_ikl(ch, key, vlit(value));
+    chash_il(ch, vlit(key), vlit(value));
   }
-  printtrace_diffnow(&s, "clib");
-  if (getrusage(RUSAGE_SELF, &rus) == 0)
-    fprintf(stderr, "[maxrss:build] %ld (kbytes)\n", rus.ru_maxrss);
-  s = trace_start();
+  printtrace_diffnow(&s, "clib-l");
 
+  s = trace_start();
   chash *ch2 = chash_init(sizeof(uint32_t), sizeof(uint32_t));
   for (size_t i = 0; i < MAX; i++) {
     key = rand(), value = rand();
-    chash_i2(ch2, vlit(key), vlit(value));
+    chash_i(ch2, vlit(key), vlit(value));
   }
-  printtrace_diffnow(&s, "clib2");
-  if (getrusage(RUSAGE_SELF, &rus) == 0)
-    fprintf(stderr, "[maxrss:build] %ld (kbytes)\n", rus.ru_maxrss);
+  printtrace_diffnow(&s, "clib-s");
+
   return EXIT_SUCCESS;
 }

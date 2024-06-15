@@ -53,6 +53,8 @@ static inline int keql(void *a, void *b) {
   return A == B;
 }
 static inline size_t chash_resize(chash *h, size_t nmemb);
+static inline size_t chash_resizel(chash *h, size_t nmemb);
+static inline size_t chash_resize_su4(chash *h, size_t nmemb);
 
 [[nodiscard]] static inline chash *chash_init(size_t ksize, size_t vsize) {
   size_t nmemb = 1 << 4;
@@ -133,6 +135,9 @@ static inline int memzero(void *m, size_t s) {
 static inline size_t chm_fkz(chash *restrict h, void *restrict k,
                              uint8_t *restrict retcode);
 
+static inline size_t chm_fkz_l(chash *restrict h, void *restrict k,
+                               uint8_t *restrict retcode);
+#define CHM_MAXLOAD 0.65
 static inline void chash_i(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
     printf("[%s] WARN: key and value set both to zero is not permitted. "
@@ -141,7 +146,7 @@ static inline void chash_i(chash *h, void *k, void *value) {
     return;
   }
 
-  if (h->n >= (h->c * 0.75))
+  if (h->n >= (h->c * CHM_MAXLOAD))
     if (!chash_resize(h, h->c << 1))
       exit(EXIT_FAILURE);
 
@@ -152,13 +157,32 @@ static inline void chash_i(chash *h, void *k, void *value) {
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
 }
+static inline void chash_il(chash *h, void *k, void *value) {
+  if (memzero(k, h->sk) && memzero(value, h->sv)) {
+    printf("[%s] WARN: key and value set both to zero is not permitted. "
+           "This insertion has been ignored.\n",
+           __func__);
+    return;
+  }
 
-#define chash_ikl(h, k, value) chash_i((h), &(__typeof__((k))){(k)}, (value))
+  if (h->n >= (h->c * CHM_MAXLOAD))
+    if (!chash_resizel(h, h->c << 1))
+      exit(EXIT_FAILURE);
+
+  size_t i = chm_fkz_l(h, k, NULL);
+
+  // printf("\tinserted k:%u -> %zu\n", *(uint32_t *)k, i);
+  memcpy(chm_kat(h, i), k, h->sk);
+  memcpy(chm_vat(h, i), value, h->sv);
+  h->n++;
+}
+
+// #define chash_ikl(h, k, value) chash_i((h), &(__typeof__((k))){(k)}, (value))
 
 // to make LSP happy
 // #define __AVX2__
 
-// #ifdef __AVX2__
+#ifdef __AVX2__
 // TODO: debug remove
 void p256_hex_u32(__m256i x, char *prefix) {
   uint32_t v[8] = {0};
@@ -208,7 +232,7 @@ avxinsert:
   }
 
   for (; i < h->c; i++) {
-    if (memcmp(k, chm_kat(h, i), h->sk)) {
+    if (memcmp(k, chm_kat(h, i), h->sk) == 0) {
       if (ret)
         *ret = CHM_FK;
       goto out;
@@ -259,7 +283,7 @@ avxinsert:
   }
 
   for (; i < h->c; i++) {
-    if (memcmp(k, chm_kat(h, i), h->sk)) {
+    if (memcmp(k, chm_kat(h, i), h->sk) == 0) {
       if (ret)
         *ret = CHM_FK;
       goto out;
@@ -276,15 +300,18 @@ out:
   // printf("%zu\n", problen);
   return i;
 }
-// #endif
 
-static inline void chash_i2(chash *h, void *k, void *value) {
+static inline void chash_i_su4(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
     printf("[%s] WARN: key and value set both to zero is not permitted. "
            "This insertion has been ignored.\n",
            __func__);
     return;
   }
+
+  if (h->n >= (h->c * 0.75))
+    if (!chash_resize_su4(h, h->c << 1))
+      exit(EXIT_FAILURE);
 
   size_t i = chm_fkz_su4(h, k, NULL);
 
@@ -293,12 +320,13 @@ static inline void chash_i2(chash *h, void *k, void *value) {
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
 }
+#endif
 
-static inline size_t chm_fkz(chash *restrict h, void *restrict k,
-                             uint8_t *restrict retcode) {
+static inline size_t chm_fkz_l(chash *restrict h, void *restrict k,
+                               uint8_t *restrict retcode) {
   size_t i = (h->khash)(k)&h->mod;
   while (1) {
-    if (memcmp(k, chm_kat(h, i), h->sk)) {
+    if (memcmp(k, chm_kat(h, i), h->sk) == 0) {
       if (retcode)
         *retcode = CHM_FK;
       return i;
@@ -310,6 +338,16 @@ static inline size_t chm_fkz(chash *restrict h, void *restrict k,
     }
     i = (i + 1) & h->mod;
   }
+}
+static inline size_t chm_fkz(chash *restrict h, void *restrict k,
+                             uint8_t *restrict retcode) {
+#ifdef __AVX2__
+  if (h->sv == 4 && h->sk == 4)
+    return chm_fkz_su4(h, k, retcode);
+  if (h->sv == 8 && h->sk == 8)
+    return chm_fkz_su8(h, k, retcode);
+#endif
+  return chm_fkz_l(h, h, retcode);
 }
 
 static inline void **chash_g(chash *h, void *k) {
@@ -365,6 +403,28 @@ static inline void chash_d(chash *h, void *k) {
   h->n--;
 }
 
+static inline size_t chash_resizel(chash *h, size_t nmemb) {
+  // printf("[%s] nmemb = %zu\n", __func__, nmemb);
+  if (nmemb < h->n)
+    return 0;
+
+  void *nds = calloc(nmemb, h->sk + h->sv);
+  if (!nds)
+    return 0;
+
+  void *ods = h->ds;
+  h->ds = nds;
+  h->n = 0;
+  for (size_t i = 0; i < h->c; i++) {
+    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
+          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
+      chash_il(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+  }
+  FREE(ods);
+  h->c = nmemb;
+  h->mod = h->c - 1;
+  return nmemb;
+}
 static inline size_t chash_resize(chash *h, size_t nmemb) {
   // printf("[%s] nmemb = %zu\n", __func__, nmemb);
   if (nmemb < h->n)
@@ -380,7 +440,6 @@ static inline size_t chash_resize(chash *h, size_t nmemb) {
   for (size_t i = 0; i < h->c; i++) {
     if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
           memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
-      // HACK: change this to actual key
       chash_i(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
   }
   FREE(ods);
@@ -389,4 +448,29 @@ static inline size_t chash_resize(chash *h, size_t nmemb) {
   return nmemb;
 }
 
+static inline size_t chash_resize_su4(chash *h, size_t nmemb) {
+  // printf("[%s] nmemb = %zu\n", __func__, nmemb);
+  if (nmemb < h->n)
+    return 0;
+
+  void *nds = calloc(nmemb, h->sk + h->sv);
+  if (!nds)
+    return 0;
+
+  void *ods = h->ds;
+  h->ds = nds;
+  h->n = 0;
+  for (size_t i = 0; i < h->c; i++) {
+    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
+          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
+#ifdef __AVX2__
+      chash_i_su4(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+#endif 
+    continue;
+  }
+  FREE(ods);
+  h->c = nmemb;
+  h->mod = h->c - 1;
+  return nmemb;
+}
 #endif
