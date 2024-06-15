@@ -11,6 +11,10 @@ all: $(TESTOBJS)
 debug: CFLAGS+=-O0 -g
 debug: clean $(TESTOBJS)
 
+t2: CFLAGS+=-O0 -g 
+t2: test-hash2.c chash.h
+	$(CC) -o $@ $^ $(CFLAGS)
+
 clib-test-hash: test-hash.c chash.h
 	$(CC) -o $@ $^ $(CFLAGS)
 

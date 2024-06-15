@@ -49,35 +49,35 @@ typedef struct {
 #define vlit(v)                                                                \
   &(typeof((v))) { (v) }
 int main(int argc, char *argv[]) {
-  // size_t s = 4;
-  // void *xx = malloc(10 * s);
-  //
-  // printf("x = %p\n", xx);
-  // printf("x+ = %p\n", ((unsigned char *)xx) + (2 * s));
+// size_t s = 4;
+// void *xx = malloc(10 * s);
+//
+// printf("x = %p\n", xx);
+// printf("x+ = %p\n", ((unsigned char *)xx) + (2 * s));
 
-  // chash hx = chash_init(sizeof(uint32_t), 10);
-  // uint32_t _20 = 20;
-  // uint32_t _21 = 21;
-  // chash_i(&hx, 20, &_20);
-  // chash_i(&hx, 20, &_21);
-  // chash_i(&hx, 21, &(uint32_t){33});
-  // chash_i(&hx, 23, vlit(uint32_t, 0xFFFFFFF));
-  // // chasht_i(hx, 24, uint32_t, 20);
-  // chash_d(&hx, 20);
-  // // chasht_d(hx, 20, uint32_t);
-  // //
-  // //
-  //
-  // printf("*(uint32_t *)TOMBSTONE = %d\n", *(uint32_t *)TOMBSTONE);
-  // for (size_t i = 0; i < hx.n; i++) {
-  //   printf("%zu: %10d %10d\n", i, chm_kat(&hx, i), ((uint32_t *)hx.vs)[i]);
-  // }
-  // chash_i(&hx, 20, &_21);
-  // for (size_t i = 0; i < hx.n; i++) {
-  //   printf("%zu: %10d %10d\n", i, chm_kat(&hx, i), ((uint32_t *)hx.vs)[i]);
-  // }
-  // return EXIT_SUCCESS;
-
+// chash hx = chash_init(sizeof(uint32_t), 10);
+// uint32_t _20 = 20;
+// uint32_t _21 = 21;
+// chash_i(&hx, 20, &_20);
+// chash_i(&hx, 20, &_21);
+// chash_i(&hx, 21, &(uint32_t){33});
+// chash_i(&hx, 23, vlit(uint32_t, 0xFFFFFFF));
+// // chasht_i(hx, 24, uint32_t, 20);
+// chash_d(&hx, 20);
+// // chasht_d(hx, 20, uint32_t);
+// //
+// //
+//
+// printf("*(uint32_t *)TOMBSTONE = %d\n", *(uint32_t *)TOMBSTONE);
+// for (size_t i = 0; i < hx.n; i++) {
+//   printf("%zu: %10d %10d\n", i, chm_kat(&hx, i), ((uint32_t *)hx.vs)[i]);
+// }
+// chash_i(&hx, 20, &_21);
+// for (size_t i = 0; i < hx.n; i++) {
+//   printf("%zu: %10d %10d\n", i, chm_kat(&hx, i), ((uint32_t *)hx.vs)[i]);
+// }
+// return EXIT_SUCCESS;
+#ifdef STRUCTEST
   chash *hz = chash_init(sizeof(uint32_t), sizeof(structest *));
   structest *t1 = malloc(sizeof *t1);
   t1->x = 20;
@@ -208,7 +208,7 @@ int main(int argc, char *argv[]) {
   free(t1);
   free(t2);
   chash_destroy(hz);
-
+#endif
   puts("------------------------------------------------");
   puts("UINT32");
 
@@ -224,34 +224,34 @@ int main(int argc, char *argv[]) {
   chash_ikl(hx, 3, vlit(3));
   print_int_debug(hx);
 
-  uint32_t *igetted = (uint32_t *)chash_g(hz, vlit(25));
-  printf("igetted = %p -> ", igetted);
+  uint32_t *igetted = (uint32_t *)chash_g(hx, vlit(25));
+  printf("igetted (25) = %p -> ", igetted);
   if (igetted)
     printf("%u\n", *igetted);
   else
     puts("NULL");
-  igetted = (uint32_t *)chash_g(hz, vlit(26));
-  printf("igetted = %p -> ", igetted);
+  igetted = (uint32_t *)chash_g(hx, vlit(26));
+  printf("igetted (26) = %p -> ", igetted);
   if (igetted)
     printf("%u\n", *igetted);
   else
     puts("NULL");
   puts("DELETE 25");
-  chash_d(hz, vlit(25));
+  chash_d(hx, vlit(25));
 
   print_int_debug(hx);
   puts("INSERT 31");
-  chash_ikl(hz, 31, vlit(32));
+  chash_ikl(hx, 31, vlit(32));
   print_int_debug(hx);
 
-  printf("h = %p\n", hz);
+  printf("h = %p\n", hx);
 
-  done = chash_resize(hx, 1 << 4);
-  printf("done = %zu\n", done);
+  size_t done2 = chash_resize(hx, 1 << 4);
+  printf("done = %zu\n", done2);
   print_int_debug(hx);
 
-  done = chash_resize(hx, 1 << 3);
-  printf("done = %zu\n", done);
+  done2 = chash_resize(hx, 1 << 3);
+  printf("done = %zu\n", done2);
   print_int_debug(hx);
   return EXIT_SUCCESS;
 }

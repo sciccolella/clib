@@ -1,6 +1,7 @@
 #ifndef CHASH_H
 #define CHASH_H
 
+#include "immintrin.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
   } while (0)
 #endif
 
+enum { CHM_FK, CHM_FZ };
 typedef struct {
   int (*keql)(void *, void *);
   size_t (*khash)(void *);
@@ -26,7 +28,10 @@ typedef struct {
 } chash;
 
 typedef uint32_t key_ty;
-static inline size_t hash_int(key_ty x) { return x % 3; }
+static inline size_t hash_debug(void *x) {
+  uint32_t X = *(uint32_t *)x;
+  return X % 3;
+}
 static inline size_t hash_int2(void *x) {
   uint32_t X = *(uint32_t *)x;
   // X ^= (X >> 33);
@@ -40,8 +45,6 @@ static inline size_t hash_int2(void *x) {
   X *= 0xc2b2ae35;
   X ^= X >> 16;
   return X;
-  // return X % 3;
-  // return X;
 }
 static inline int keql(void *a, void *b) {
   uint32_t A = *(uint32_t *)a;
@@ -52,14 +55,18 @@ static inline int keql(void *a, void *b) {
 static inline size_t chash_resize(chash *h, size_t nmemb);
 
 [[nodiscard]] static inline chash *chash_init(size_t ksize, size_t vsize) {
-  size_t nmemb = 1 << 3;
+  size_t nmemb = 1 << 4;
   // size_t nmemb = 1 << 10;
   chash *h = malloc(sizeof *h);
   if (!h)
     return NULL;
   // TODO: add to initialization
   h->keql = keql;
+#ifdef CHDEBUG
+  h->khash = hash_debug;
+#else
   h->khash = hash_int2;
+#endif
   h->sk = ksize;
   h->sv = vsize;
   h->n = 0;
@@ -123,6 +130,9 @@ static inline int memzero(void *m, size_t s) {
   return r == 0;
 }
 
+static inline size_t chm_fkz(chash *restrict h, void *restrict k,
+                             uint8_t *restrict retcode);
+
 static inline void chash_i(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
     printf("[%s] WARN: key and value set both to zero is not permitted. "
@@ -130,35 +140,12 @@ static inline void chash_i(chash *h, void *k, void *value) {
            __func__);
     return;
   }
-  // if (h->n == h->c)
-  if (h->n >= (h->c * 0.65))
+
+  if (h->n >= (h->c * 0.75))
     if (!chash_resize(h, h->c << 1))
       exit(EXIT_FAILURE);
 
-  size_t problen = 0;
-  size_t i = (h->khash)(k)&h->mod;
-  // printf("[%s] k:%3u h:%3zu\n", __func__, *(uint32_t *)k, i);
-  // for (size_t x = 0; x < h->c; x++) {
-  //   printf("%3zu: kat:%20p\t*kat:%10u\tkat_null?:%d", x, chm_kat(h, x),
-  //          *(uint32_t *)chm_kat(h, x), chm_kat_null(h, x));
-  //
-  //   printf("\t t:%d", memzero(chm_kat(h, x), h->sk));
-  //   printf("\n\t chm_vat:%d\t memzero:%d", chm_vat(h, x),  memzero(chm_kat(h,
-  //   x), h->sk));
-  //   // printf("\t%d", memcmp(chm_kat(h, x), NULL, h->sk));
-  //   puts("");
-  // }
-  // printf("%zu,", i);
-  while (!memzero(chm_kat(h, i), h->sk) && !memzero(chm_vat(h, i), h->sv) &&
-         // !(h->keql)(chm_kat(h, i), k)
-         // !(*(uint32_t*)k == *(uint32_t*)chm_kat(h, i))
-         memcmp(k, chm_kat(h, i), h->sk))
-  // do not format
-  {
-    problen++;
-    i = (i + 1) & h->mod;
-  }
-  printf("%zu\n", problen);
+  size_t i = chm_fkz(h, k, NULL);
 
   // printf("\tinserted k:%u -> %zu\n", *(uint32_t *)k, i);
   memcpy(chm_kat(h, i), k, h->sk);
@@ -167,6 +154,163 @@ static inline void chash_i(chash *h, void *k, void *value) {
 }
 
 #define chash_ikl(h, k, value) chash_i((h), &(__typeof__((k))){(k)}, (value))
+
+// to make LSP happy
+// #define __AVX2__
+
+// #ifdef __AVX2__
+// TODO: debug remove
+void p256_hex_u32(__m256i x, char *prefix) {
+  uint32_t v[8] = {0};
+  _mm256_storeu_si256((__m256i *)v, x);
+  printf("[%s] %08x %08x %08x %08x %08x %08x %08x %08x\n", prefix, v[0], v[1],
+         v[2], v[3], v[4], v[5], v[6], v[7]);
+}
+
+// TODO: debug remove
+void p256_hex_u64(__m256i x, char *prefix) {
+  uint64_t v[4] = {0};
+  _mm256_storeu_si256((__m256i *)v, x);
+  printf("[%s] %016lx %016lx %016lx %016lx\n", prefix, v[0], v[1], v[2], v[3]);
+}
+
+static inline size_t chm_fkz_su4(chash *restrict h, void *restrict k,
+                                 uint8_t *restrict ret) {
+  size_t i = (h->khash)(k)&h->mod;
+  __m256i zeros = _mm256_setzero_si256();
+  __m256i vk = _mm256_set1_epi32(*(uint32_t *)k);
+avxinsert:
+  for (; i < h->c - 4; i += 4) {
+    // printf("i = %zu\n", i);
+    __m256i a = _mm256_lddqu_si256((const __m256i *)chm_kat(h, i));
+    __m256i cmpk = _mm256_cmpeq_epi32(a, vk);    // CPI 0.5
+    __m256i cmpz = _mm256_cmpeq_epi32(a, zeros); // CPI 0.5
+    // p256_hex_u32(a, "   a");
+    // p256_hex_u32(cmpk, "cmpk");
+    // p256_hex_u32(cmpz, "cmpz");
+
+    uint32_t maskk = _mm256_movemask_epi8(cmpk); // CPI 1
+    if (maskk) {
+      // printf("%32b - CTZ=%4d\n", maskk, __builtin_ctz(maskk));
+      i += (__builtin_ctz(maskk) >> 3);
+      if (ret)
+        *ret = CHM_FK;
+      goto out;
+    }
+    uint32_t maskz = _mm256_movemask_epi8(cmpz); // CPI 1
+    if (maskz) {
+      // printf("%32b - CTZ=%4d\n", maskz, __builtin_ctz(maskz));
+      i += (__builtin_ctz(maskz) >> 3);
+      if (ret)
+        *ret = CHM_FZ;
+      goto out;
+    }
+  }
+
+  for (; i < h->c; i++) {
+    if (memcmp(k, chm_kat(h, i), h->sk)) {
+      if (ret)
+        *ret = CHM_FK;
+      goto out;
+    }
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_kat(h, i), h->sv)) {
+      if (ret)
+        *ret = CHM_FZ;
+      goto out;
+    }
+    i = 0;
+    goto avxinsert;
+  }
+out:
+  // printf("%zu\n", problen);
+  return i;
+}
+static inline size_t chm_fkz_su8(chash *restrict h, void *restrict k,
+                                 uint8_t *restrict ret) {
+  size_t i = (h->khash)(k)&h->mod;
+  __m256i zeros = _mm256_setzero_si256();
+  __m256i vk = _mm256_set1_epi64x(*(uint64_t *)k);
+avxinsert:
+  for (; i < h->c - 2; i += 2) {
+    // printf("i = %zu\n", i);
+    __m256i a = _mm256_lddqu_si256((const __m256i *)chm_kat(h, i));
+    __m256i cmpk = _mm256_cmpeq_epi64(a, vk);    // CPI 0.5
+    __m256i cmpz = _mm256_cmpeq_epi64(a, zeros); // CPI 0.5
+    // p256_hex_u64(a, "   a");
+    // p256_hex_u64(cmpk, "cmpk");
+    // p256_hex_u64(cmpz, "cmpz");
+
+    uint32_t maskk = _mm256_movemask_epi8(cmpk); // CPI 1
+    if (maskk) {
+      // printf("%32b - CTZ=%4d\n", maskk, __builtin_ctz(maskk));
+      i += (__builtin_ctz(maskk) >> 4);
+      if (ret)
+        *ret = CHM_FK;
+      goto out;
+    }
+    uint32_t maskz = _mm256_movemask_epi8(cmpz); // CPI 1
+    if (maskz) {
+      // printf("%32b - CTZ=%4d\n", maskz, __builtin_ctz(maskz));
+      i += (__builtin_ctz(maskz) >> 4);
+      if (ret)
+        *ret = CHM_FZ;
+      goto out;
+    }
+  }
+
+  for (; i < h->c; i++) {
+    if (memcmp(k, chm_kat(h, i), h->sk)) {
+      if (ret)
+        *ret = CHM_FK;
+      goto out;
+    }
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_kat(h, i), h->sv)) {
+      if (ret)
+        *ret = CHM_FZ;
+      goto out;
+    }
+    i = 0;
+    goto avxinsert;
+  }
+out:
+  // printf("%zu\n", problen);
+  return i;
+}
+// #endif
+
+static inline void chash_i2(chash *h, void *k, void *value) {
+  if (memzero(k, h->sk) && memzero(value, h->sv)) {
+    printf("[%s] WARN: key and value set both to zero is not permitted. "
+           "This insertion has been ignored.\n",
+           __func__);
+    return;
+  }
+
+  size_t i = chm_fkz_su4(h, k, NULL);
+
+  // printf("\tinserted k:%u -> %zu\n", *(uint32_t *)k, i);
+  memcpy(chm_kat(h, i), k, h->sk);
+  memcpy(chm_vat(h, i), value, h->sv);
+  h->n++;
+}
+
+static inline size_t chm_fkz(chash *restrict h, void *restrict k,
+                             uint8_t *restrict retcode) {
+  size_t i = (h->khash)(k)&h->mod;
+  while (1) {
+    if (memcmp(k, chm_kat(h, i), h->sk)) {
+      if (retcode)
+        *retcode = CHM_FK;
+      return i;
+    }
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_kat(h, i), h->sv)) {
+      if (retcode)
+        *retcode = CHM_FZ;
+      return i;
+    }
+    i = (i + 1) & h->mod;
+  }
+}
 
 static inline void **chash_g(chash *h, void *k) {
   // printf("[%s] k:%5u\n", __func__, *(uint32_t *)k);
