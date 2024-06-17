@@ -33,7 +33,7 @@ typedef struct {
   };
 
 #define vlit(v)                                                                \
-  &(typeof((v))) { (v) }
+  &(__typeof__((v))) { (v) }
 int main(int argc, char *argv[]) {
 
 #ifdef __AVX2__
@@ -42,20 +42,20 @@ int main(int argc, char *argv[]) {
   puts("------------------------------------------------");
   puts("UINT32");
 
-  chash *hx = chash_init(sizeof(uint64_t), sizeof(uint64_t));
-  chash *hs = chash_init(sizeof(uint64_t), sizeof(uint64_t));
+  chash *hx = chash_init(sizeof(uint32_t), sizeof(uint32_t));
+  chash *hs = chash_init(sizeof(uint32_t), sizeof(uint32_t));
   printf("hs->c = %zu\n", hs->c);
   chash_i(hx, vlit(21), vlit(21));
-  chash_i(hs, vlit(21), vlit(21));
+  chash_i_su4_avx512f(hs, vlit(21), vlit(21));
   chash_i(hx, vlit(25), vlit(25));
-  chash_i(hs, vlit(25), vlit(25));
+  chash_i_su4_avx512f(hs, vlit(25), vlit(25));
   chash_i(hx, vlit(2), vlit(2));
-  chash_i(hs, vlit(2), vlit(2));
+  chash_i_su4_avx512f(hs, vlit(2), vlit(2));
   chash_i(hx, vlit(27), vlit(28));
-  chash_i(hs, vlit(27), vlit(28));
-
+  chash_i_su4_avx512f(hs, vlit(27), vlit(28));
+  //
   chash_i(hx, vlit(27), vlit(57));
-  chash_i(hs, vlit(27), vlit(57));
+  chash_i_su4_avx512f(hs, vlit(27), vlit(57));
   // chash_ikl(hx, 29, vlit(29));
   // chash_ikl(hx, 31, vlit(31));
   // // NOTE: this will be ignored. Both key and value of 0 is not permitted.
