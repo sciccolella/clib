@@ -22,6 +22,7 @@ struct chash {
   int (*keql)(void *, void *);
   size_t (*khash)(void *);
   size_t (*fkz)(chash *, void *, uint8_t *);
+  size_t (*fz)(chash *, void *);
   size_t sk;
   size_t sv;
   size_t n;
@@ -63,7 +64,8 @@ static inline size_t chm_fkz(chash *restrict h, void *restrict k,
                              uint8_t *restrict retcode);
 static inline size_t chm_fkz_l(chash *restrict h, void *restrict k,
                                uint8_t *restrict retcode);
-
+static inline size_t chm_fz(chash *restrict h, void *restrict k);
+static inline size_t chm_fz_l(chash *restrict h, void *restrict k);
 // to make LSP happy
 // NOTE: this has to be deleted
 #ifndef __AVX2__
@@ -78,12 +80,16 @@ static inline size_t chm_fkz_avx2_u4(chash *restrict h, void *restrict k,
                                      uint8_t *restrict ret);
 static inline size_t chm_fkz_avx2_u8(chash *restrict h, void *restrict k,
                                      uint8_t *restrict ret);
+static inline size_t chm_fz_avx2_u4(chash *restrict h, void *restrict k);
+static inline size_t chm_fz_avx2_u8(chash *restrict h, void *restrict k);
 #endif
 #ifdef __AVX512F__
 static inline size_t chm_fkz_avx512f_u4(chash *restrict h, void *restrict k,
                                         uint8_t *restrict ret);
 static inline size_t chm_fkz_avx512f_u8(chash *restrict h, void *restrict k,
                                         uint8_t *restrict ret);
+// static inline size_t chm_fz_avx512f_u4(chash *restrict h, void *restrict k);
+// static inline size_t chm_fz_avx512f_u8(chash *restrict h, void *restrict k);
 #endif
 
 [[nodiscard]] static inline chash *chash_init(size_t ksize, size_t vsize) {
@@ -109,6 +115,20 @@ static inline size_t chm_fkz_avx512f_u8(chash *restrict h, void *restrict k,
     h->fkz = chm_fkz_avx2_u8;
 #endif
 #ifdef __AVX512F__
+  if (h->sv == 4 && h->sk == 4)
+    h->fkz = chm_fkz_avx512f_u4;
+  if (h->sv == 8 && h->sk == 8)
+    h->fkz = chm_fkz_avx512f_u8;
+#endif
+  h->fz = chm_fz_l;
+#ifdef __AVX2__
+  if (h->sv == 4 && h->sk == 4)
+    h->fz = chm_fz_avx2_u4;
+  if (h->sv == 8 && h->sk == 8)
+    h->fz = chm_fz_avx2_u8;
+#endif
+#ifdef __AVX512F__
+  // TODO: fix with fz
   if (h->sv == 4 && h->sk == 4)
     h->fkz = chm_fkz_avx512f_u4;
   if (h->sv == 8 && h->sk == 8)
@@ -226,7 +246,7 @@ static inline void chash_il(chash *h, void *k, void *value) {
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void chash_iA(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
@@ -267,7 +287,6 @@ void p256_hex_u64(__m256i x, char *prefix) {
   _mm256_storeu_si256((__m256i *)v, x);
   printf("[%s] %016lx %016lx %016lx %016lx\n", prefix, v[0], v[1], v[2], v[3]);
 }
-// TODO: debug remove
 
 static inline size_t chm_fkz_avx2_u4(chash *restrict h, void *restrict k,
                                      uint8_t *restrict ret) {
@@ -311,6 +330,38 @@ avxinsert:
     if (memzero(chm_kat(h, i), h->sk) && memzero(chm_kat(h, i), h->sv)) {
       if (ret)
         *ret = CHM_FZ;
+      goto out;
+    }
+    i = 0;
+    goto avxinsert;
+  }
+out:
+  // printf("%zu\n", problen);
+  return i;
+}
+
+static inline size_t chm_fz_avx2_u4(chash *restrict h, void *restrict k) {
+  size_t i = (h->khash)(k)&h->mod;
+  __m256i zeros = _mm256_setzero_si256();
+avxinsert:
+  for (; i < h->c - 4; i += 4) {
+    // printf("i = %zu\n", i);
+    __m256i a = _mm256_lddqu_si256((const __m256i *)chm_kat(h, i));
+    __m256i cmpz = _mm256_cmpeq_epi32(a, zeros); // CPI 0.5
+    // p256_hex_u32(a, "   a");
+    // p256_hex_u32(cmpk, "cmpk");
+    // p256_hex_u32(cmpz, "cmpz");
+
+    uint32_t maskz = _mm256_movemask_epi8(cmpz); // CPI 1
+    if (maskz) {
+      // printf("%32b - CTZ=%4d\n", maskz, __builtin_ctz(maskz));
+      i += (__builtin_ctz(maskz) >> 3);
+      goto out;
+    }
+  }
+
+  for (; i < h->c; i++) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
       goto out;
     }
     i = 0;
@@ -372,7 +423,38 @@ out:
   return i;
 }
 
-// TODO: this is only for enforcing the same insertion patter, but should
+static inline size_t chm_fz_avx2_u8(chash *restrict h, void *restrict k) {
+  size_t i = (h->khash)(k)&h->mod;
+  __m256i zeros = _mm256_setzero_si256();
+avxinsert:
+  for (; i < h->c - 2; i += 2) {
+    // printf("i = %zu\n", i);
+    __m256i a = _mm256_lddqu_si256((const __m256i *)chm_kat(h, i));
+    __m256i cmpz = _mm256_cmpeq_epi64(a, zeros); // CPI 0.5
+    // p256_hex_u64(a, "   a");
+    // p256_hex_u64(cmpk, "cmpk");
+    // p256_hex_u64(cmpz, "cmpz");
+
+    uint32_t maskz = _mm256_movemask_epi8(cmpz); // CPI 1
+    if (maskz) {
+      // printf("%32b - CTZ=%4d\n", maskz, __builtin_ctz(maskz));
+      i += (__builtin_ctz(maskz) >> 4);
+      goto out;
+    }
+  }
+
+  for (; i < h->c; i++) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
+      goto out;
+    }
+    i = 0;
+    goto avxinsert;
+  }
+out:
+  // printf("%zu\n", problen);
+  return i;
+}
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void chash_i_avx2_u4(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
@@ -393,7 +475,7 @@ static inline void chash_i_avx2_u4(chash *h, void *k, void *value) {
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline size_t chash_resize_avx2_u4(chash *h, size_t nmemb) {
   // printf("[%s] nmemb = %zu\n", __func__, nmemb);
@@ -407,28 +489,32 @@ static inline size_t chash_resize_avx2_u4(chash *h, size_t nmemb) {
   void *ods = h->ds;
   h->ds = nds;
   h->n = 0;
-  for (size_t i = 0; i < h->c; i++) {
-    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
-          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
-      chash_i_avx2_u4(h, s_kat(ods, i, h->sk, h->sv),
-                      s_vat(ods, i, h->sk, h->sv));
-    continue;
+  h->mod = nmemb - 1;
+  h->c = nmemb;
+  for (size_t i = 0; i < oc; i++) {
+    void *k =s_kat(ods, i, h->sk, h->sv);
+    void *v = s_vat(ods, i, h->sk, h->sv);
+    if (!(memzero(k, h->sk) &&
+          memzero(v, h->sv))) {
+      size_t pos = chm_fz_avx2_u4(h, k);
+      memcpy(chm_kat(h, pos), k, h->sk);
+      memcpy(chm_vat(h, pos), v, h->sv);
+      h->n++;
+    }
   }
   FREE(ods);
-  h->c = nmemb;
-  h->mod = h->c - 1;
   return nmemb;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void **chash_g_avx2_u4(chash *h, void *k) {
-  uint8_t retcode;
+  uint8_t retcode = CHM_FZ;
   size_t i = chm_fkz_avx2_u4(h, k, &retcode);
   if (retcode == CHM_FZ)
     return NULL;
   return chm_vat(h, i);
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void chash_i_avx2_u8(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
@@ -449,7 +535,7 @@ static inline void chash_i_avx2_u8(chash *h, void *k, void *value) {
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline size_t chash_resize_avx2_u8(chash *h, size_t nmemb) {
   // printf("[%s] nmemb = %zu\n", __func__, nmemb);
@@ -461,21 +547,26 @@ static inline size_t chash_resize_avx2_u8(chash *h, size_t nmemb) {
     return 0;
 
   void *ods = h->ds;
+  size_t oc = h->c;
   h->ds = nds;
   h->n = 0;
-  for (size_t i = 0; i < h->c; i++) {
-    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
-          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
-      chash_i_avx2_u8(h, s_kat(ods, i, h->sk, h->sv),
-                      s_vat(ods, i, h->sk, h->sv));
-    continue;
+  h->mod = nmemb - 1;
+  h->c = nmemb;
+  for (size_t i = 0; i < oc; i++) {
+    void *k =s_kat(ods, i, h->sk, h->sv);
+    void *v = s_vat(ods, i, h->sk, h->sv);
+    if (!(memzero(k, h->sk) &&
+          memzero(v, h->sv))) {
+      size_t pos = chm_fz_avx2_u8(h, k);
+      memcpy(chm_kat(h, pos), k, h->sk);
+      memcpy(chm_vat(h, pos), v, h->sv);
+      h->n++;
+    }
   }
   FREE(ods);
-  h->c = nmemb;
-  h->mod = h->c - 1;
   return nmemb;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void **chash_g_avx2_u8(chash *h, void *k) {
   uint8_t retcode;
@@ -602,7 +693,7 @@ out:
   return i;
 }
 
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void chash_i_avx512f_u4(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
@@ -623,7 +714,7 @@ static inline void chash_i_avx512f_u4(chash *h, void *k, void *value) {
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline size_t chash_resize_avx512f_u4(chash *h, size_t nmemb) {
   // printf("[%s] nmemb = %zu\n", __func__, nmemb);
@@ -635,9 +726,13 @@ static inline size_t chash_resize_avx512f_u4(chash *h, size_t nmemb) {
     return 0;
 
   void *ods = h->ds;
+  size_t oc = h->c;
   h->ds = nds;
   h->n = 0;
-  for (size_t i = 0; i < h->c; i++) {
+  h->mod = nmemb - 1;
+  h->c = nmemb;
+  // TODO: optimize the insertion
+  for (size_t i = 0; i < oc; i++) {
     if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
           memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
       chash_i_avx512f_u4(h, s_kat(ods, i, h->sk, h->sv),
@@ -645,12 +740,10 @@ static inline size_t chash_resize_avx512f_u4(chash *h, size_t nmemb) {
     continue;
   }
   FREE(ods);
-  h->c = nmemb;
-  h->mod = h->c - 1;
   return nmemb;
 }
 
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void **chash_g_avx512f_u4(chash *h, void *k) {
   uint8_t retcode;
@@ -659,7 +752,7 @@ static inline void **chash_g_avx512f_u4(chash *h, void *k) {
     return NULL;
   return chm_vat(h, i);
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void chash_i_avx512f_u8(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
@@ -680,7 +773,7 @@ static inline void chash_i_avx512f_u8(chash *h, void *k, void *value) {
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline size_t chash_resize_avx512f_u8(chash *h, size_t nmemb) {
   // printf("[%s] nmemb = %zu\n", __func__, nmemb);
@@ -691,10 +784,14 @@ static inline size_t chash_resize_avx512f_u8(chash *h, size_t nmemb) {
   if (!nds)
     return 0;
 
+  size_t oc = h->c;
   void *ods = h->ds;
   h->ds = nds;
   h->n = 0;
-  for (size_t i = 0; i < h->c; i++) {
+  h->mod = nmemb - 1;
+  h->c = nmemb;
+  // TODO: optimize the insertion
+  for (size_t i = 0; i < oc; i++) {
     if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
           memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
       chash_i_avx512f_u4(h, s_kat(ods, i, h->sk, h->sv),
@@ -702,11 +799,9 @@ static inline size_t chash_resize_avx512f_u8(chash *h, size_t nmemb) {
     continue;
   }
   FREE(ods);
-  h->c = nmemb;
-  h->mod = h->c - 1;
   return nmemb;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void **chash_g_avx512f_u8(chash *h, void *k) {
   uint8_t retcode;
@@ -717,7 +812,7 @@ static inline void **chash_g_avx512f_u8(chash *h, void *k) {
 }
 #endif // AVX512F
 
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline size_t chm_fkz_l(chash *restrict h, void *restrict k,
                                uint8_t *restrict retcode) {
@@ -728,9 +823,45 @@ static inline size_t chm_fkz_l(chash *restrict h, void *restrict k,
         *retcode = CHM_FK;
       return i;
     }
-    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_kat(h, i), h->sv)) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
       if (retcode)
         *retcode = CHM_FZ;
+      return i;
+    }
+    i = (i + 1) & h->mod;
+  }
+}
+static inline size_t chm_fz_l(chash *restrict h, void *restrict k) {
+  size_t i = (h->khash)(k)&h->mod;
+  while (1) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
+      return i;
+    }
+    i = (i + 1) & h->mod;
+  }
+}
+
+static inline size_t chm_fkz_peq(chash *restrict h, void *restrict k,
+                                 uint8_t *restrict retcode) {
+  size_t i = (h->khash)(k)&h->mod;
+  while (1) {
+    if ((h->keql)(k, chm_kat(h, i))) {
+      if (retcode)
+        *retcode = CHM_FK;
+      return i;
+    }
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
+      if (retcode)
+        *retcode = CHM_FZ;
+      return i;
+    }
+    i = (i + 1) & h->mod;
+  }
+}
+static inline size_t chm_fz_peq(chash *restrict h, void *restrict k) {
+  size_t i = (h->khash)(k)&h->mod;
+  while (1) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
       return i;
     }
     i = (i + 1) & h->mod;
@@ -753,17 +884,34 @@ static inline size_t chm_fkz(chash *restrict h, void *restrict k,
 #endif
   return chm_fkz_l(h, k, retcode);
 }
+static inline size_t chm_fz(chash *restrict h, void *restrict k) {
+#ifdef __AVX512F__
+  //TODO: fix with fz
+  if (h->sv == 4 && h->sk == 4)
+    return chm_fkz_avx512f_u4(h, k, retcode);
+  if (h->sv == 8 && h->sk == 8)
+    return chm_fkz_avx512f_u8(h, k, retcode);
+#endif
+#ifdef __AVX2__
+  if (h->sv == 4 && h->sk == 4)
+    return chm_fz_avx2_u4(h, k);
+  if (h->sv == 8 && h->sk == 8)
+    return chm_fz_avx2_u8(h, k);
+#endif
+  return chm_fz_l(h, k);
+}
 
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void **chash_gl(chash *h, void *k) {
   uint8_t retcode;
   size_t i = chm_fkz_l(h, k, &retcode);
-  if (retcode == CHM_FZ)
+  if (retcode == CHM_FZ) {
     return NULL;
+  }
   return chm_vat(h, i);
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void **chash_gA(chash *h, void *k) {
   uint8_t retcode;
@@ -821,7 +969,7 @@ static inline void chash_d(chash *h, void *k) {
   h->n--;
 }
 
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline size_t chash_resizel(chash *h, size_t nmemb) {
   // printf("[%s] nmemb = %zu\n", __func__, nmemb);
@@ -833,19 +981,26 @@ static inline size_t chash_resizel(chash *h, size_t nmemb) {
     return 0;
 
   void *ods = h->ds;
+  size_t oc = h->c;
   h->ds = nds;
   h->n = 0;
-  for (size_t i = 0; i < h->c; i++) {
-    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
-          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
-      chash_il(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+  h->mod = nmemb - 1;
+  h->c = nmemb;
+  for (size_t i = 0; i < oc; i++) {
+    void *k = s_kat(ods, i, h->sk, h->sv);
+    void *v = s_vat(ods, i, h->sk, h->sv);
+    if (!(memzero(k, h->sk) && memzero(v, h->sv))) {
+      // chash_pi(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+      size_t pos = chm_fz_l(h, k);
+      memcpy(chm_kat(h, pos), k, h->sk);
+      memcpy(chm_vat(h, pos), v, h->sv);
+      h->n++;
+    }
   }
   FREE(ods);
-  h->c = nmemb;
-  h->mod = h->c - 1;
   return nmemb;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline size_t chash_resizeA(chash *h, size_t nmemb) {
   // printf("[%s] nmemb = %zu\n", __func__, nmemb);
@@ -857,16 +1012,37 @@ static inline size_t chash_resizeA(chash *h, size_t nmemb) {
     return 0;
 
   void *ods = h->ds;
+  size_t oc = h->c;
   h->ds = nds;
   h->n = 0;
-  for (size_t i = 0; i < h->c; i++) {
-    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
-          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
-      chash_iA(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+  h->mod = nmemb - 1;
+  h->c = nmemb;
+  //TODO: optime insertion
+  for (size_t i = 0; i < oc; i++) {
+    void *k = s_kat(ods, i, h->sk, h->sv);
+    void *v = s_vat(ods, i, h->sk, h->sv);
+    if (!(memzero(k, h->sk) && memzero(v, h->sv))) {
+      // chash_pi(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+      size_t pos = (h->fz)(h, k);
+      memcpy(chm_kat(h, pos), k, h->sk);
+      memcpy(chm_vat(h, pos), v, h->sv);
+      h->n++;
+    }
   }
   FREE(ods);
   h->c = nmemb;
-  h->mod = h->c - 1;
+  for (size_t i = 0; i < oc; i++) {
+    void *k = s_kat(ods, i, h->sk, h->sv);
+    void *v = s_vat(ods, i, h->sk, h->sv);
+    if (!(memzero(k, h->sk) && memzero(v, h->sv))) {
+      // chash_pi(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+      size_t pos = chm_fz_peq(h, k);
+      memcpy(chm_kat(h, pos), k, h->sk);
+      memcpy(chm_vat(h, pos), v, h->sv);
+      h->n++;
+    }
+  }
+  FREE(ods);
   return nmemb;
 }
 static inline size_t chash_resize(chash *h, size_t nmemb) {
@@ -879,16 +1055,23 @@ static inline size_t chash_resize(chash *h, size_t nmemb) {
     return 0;
 
   void *ods = h->ds;
+  size_t oc = h->c;
   h->ds = nds;
   h->n = 0;
-  for (size_t i = 0; i < h->c; i++) {
-    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
-          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
-      chash_i(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+  h->c = nmemb;
+  h->mod = nmemb - 1;
+  for (size_t i = 0; i < oc; i++) {
+    void *k = s_kat(ods, i, h->sk, h->sv);
+    void *v = s_vat(ods, i, h->sk, h->sv);
+    if (!(memzero(k, h->sk) && memzero(v, h->sv))) {
+      // chash_pi(h, s_kat(ods, i, h->sk, h->sv), s_vat(ods, i, h->sk, h->sv));
+      size_t pos = chm_fz_l(h, k);
+      memcpy(chm_kat(h, pos), k, h->sk);
+      memcpy(chm_vat(h, pos), v, h->sv);
+      h->n++;
+    }
   }
   FREE(ods);
-  h->c = nmemb;
-  h->mod = h->c - 1;
   return nmemb;
 }
 
