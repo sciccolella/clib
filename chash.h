@@ -173,9 +173,15 @@ static inline int memzero(void *m, size_t s) {
   //   r += m_[i];
   // }
   // return r == 0;
+
+  if (s == 4)
+    return 0UL == *(uint32_t *)m;
+  if (s == 8)
+    return 0ULL == *(uint64_t *)m;
   uint8_t *m_ = m;
   for (size_t i = 0; i < s; i++) {
-    if (m_[i]) return 0;
+    if (m_[i])
+      return 0;
   }
   return 1;
 }
