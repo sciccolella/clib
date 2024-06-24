@@ -59,7 +59,11 @@ static inline int keql(void *a, void *b) {
 static inline size_t chash_resize(chash *h, size_t nmemb);
 static inline size_t chash_resizel(chash *h, size_t nmemb);
 static inline size_t chash_resizeA(chash *h, size_t nmemb);
+static inline size_t chash_resize_p(chash *h, size_t nmemb);
 
+static inline size_t chm_fz_peq(chash *restrict h, void *restrict k);
+static inline size_t chm_fkz_peq(chash *restrict h, void *restrict k,
+                                 uint8_t *restrict retcode);
 static inline size_t chm_fkz(chash *restrict h, void *restrict k,
                              uint8_t *restrict retcode);
 static inline size_t chm_fkz_l(chash *restrict h, void *restrict k,
@@ -225,7 +229,26 @@ static inline void chash_i(chash *h, void *k, void *value) {
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
 }
-// TODO: this is only for enforcing the same insertion patter, but should
+static inline void chash_pi(chash *h, void *k, void *value) {
+  if (memzero(k, h->sk) && memzero(value, h->sv)) {
+    printf("[%s] WARN: key and value set both to zero is not permitted. "
+           "This insertion has been ignored.\n",
+           __func__);
+    return;
+  }
+
+  if (h->n >= (h->c * CHM_MAXLOAD))
+    if (!chash_resize_p(h, h->c << 1))
+      exit(EXIT_FAILURE);
+
+  size_t i = chm_fkz_peq(h, k, NULL);
+
+  // printf("\tinserted k:%u -> %zu\n", *(uint32_t *)k, i);
+  memcpy(chm_kat(h, i), k, h->sk);
+  memcpy(chm_vat(h, i), value, h->sv);
+  h->n++;
+}
+// TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void chash_il(chash *h, void *k, void *value) {
   if (memzero(k, h->sk) && memzero(value, h->sv)) {
@@ -486,6 +509,7 @@ static inline size_t chash_resize_avx2_u4(chash *h, size_t nmemb) {
   if (!nds)
     return 0;
 
+  size_t oc = h->c;
   void *ods = h->ds;
   h->ds = nds;
   h->n = 0;
@@ -921,8 +945,15 @@ static inline void **chash_gA(chash *h, void *k) {
   return chm_vat(h, i);
 }
 static inline void **chash_g(chash *h, void *k) {
-  uint8_t retcode;
+  uint8_t retcode = CHM_FZ;
   size_t i = chm_fkz(h, k, &retcode);
+  if (retcode == CHM_FZ)
+    return NULL;
+  return chm_vat(h, i);
+}
+static inline void **chash_pg(chash *h, void *k) {
+  uint8_t retcode = CHM_FZ;
+  size_t i = chm_fkz_peq(h, k, &retcode);
   if (retcode == CHM_FZ)
     return NULL;
   return chm_vat(h, i);
@@ -1030,6 +1061,22 @@ static inline size_t chash_resizeA(chash *h, size_t nmemb) {
     }
   }
   FREE(ods);
+  return nmemb;
+}
+static inline size_t chash_resize_p(chash *h, size_t nmemb) {
+  // printf("[%s] nmemb = %zu\n", __func__, nmemb);
+  if (nmemb < h->n)
+    return 0;
+
+  void *nds = calloc(nmemb, h->sk + h->sv);
+  if (!nds)
+    return 0;
+
+  void *ods = h->ds;
+  size_t oc = h->c;
+  h->ds = nds;
+  h->n = 0;
+  h->mod = nmemb - 1;
   h->c = nmemb;
   for (size_t i = 0; i < oc; i++) {
     void *k = s_kat(ods, i, h->sk, h->sv);
