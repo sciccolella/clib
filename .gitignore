@@ -2,5 +2,5 @@
 clib-test*
 .cache
 .gdb*
-benchmark/bash32
-benchmark/bash64
+benchmark/bhash32
+benchmark/bhash64
