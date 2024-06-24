@@ -350,7 +350,7 @@ avxinsert:
         *ret = CHM_FK;
       goto out;
     }
-    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_kat(h, i), h->sv)) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
       if (ret)
         *ret = CHM_FZ;
       goto out;
@@ -433,7 +433,7 @@ avxinsert:
         *ret = CHM_FK;
       goto out;
     }
-    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_kat(h, i), h->sv)) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
       if (ret)
         *ret = CHM_FZ;
       goto out;
@@ -652,7 +652,7 @@ avxinsert:
         *ret = CHM_FK;
       goto out;
     }
-    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_kat(h, i), h->sv)) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
       if (ret)
         *ret = CHM_FZ;
       goto out;
@@ -704,7 +704,7 @@ avxinsert:
         *ret = CHM_FK;
       goto out;
     }
-    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_kat(h, i), h->sv)) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
       if (ret)
         *ret = CHM_FZ;
       goto out;
