@@ -1,3 +1,5 @@
+// vim:ft=c
+
 #ifndef CHASH_H
 #define CHASH_H
 
@@ -92,8 +94,8 @@ static inline size_t chm_fkz_avx512f_u4(chash *restrict h, void *restrict k,
                                         uint8_t *restrict ret);
 static inline size_t chm_fkz_avx512f_u8(chash *restrict h, void *restrict k,
                                         uint8_t *restrict ret);
-// static inline size_t chm_fz_avx512f_u4(chash *restrict h, void *restrict k);
-// static inline size_t chm_fz_avx512f_u8(chash *restrict h, void *restrict k);
+static inline size_t chm_fz_avx512f_u4(chash *restrict h, void *restrict k);
+static inline size_t chm_fz_avx512f_u8(chash *restrict h, void *restrict k);
 #endif
 
 [[nodiscard]] static inline chash *chash_init(size_t ksize, size_t vsize) {
@@ -516,10 +518,9 @@ static inline size_t chash_resize_avx2_u4(chash *h, size_t nmemb) {
   h->mod = nmemb - 1;
   h->c = nmemb;
   for (size_t i = 0; i < oc; i++) {
-    void *k =s_kat(ods, i, h->sk, h->sv);
+    void *k = s_kat(ods, i, h->sk, h->sv);
     void *v = s_vat(ods, i, h->sk, h->sv);
-    if (!(memzero(k, h->sk) &&
-          memzero(v, h->sv))) {
+    if (!(memzero(k, h->sk) && memzero(v, h->sv))) {
       size_t pos = chm_fz_avx2_u4(h, k);
       memcpy(chm_kat(h, pos), k, h->sk);
       memcpy(chm_vat(h, pos), v, h->sv);
@@ -577,10 +578,9 @@ static inline size_t chash_resize_avx2_u8(chash *h, size_t nmemb) {
   h->mod = nmemb - 1;
   h->c = nmemb;
   for (size_t i = 0; i < oc; i++) {
-    void *k =s_kat(ods, i, h->sk, h->sv);
+    void *k = s_kat(ods, i, h->sk, h->sv);
     void *v = s_vat(ods, i, h->sk, h->sv);
-    if (!(memzero(k, h->sk) &&
-          memzero(v, h->sv))) {
+    if (!(memzero(k, h->sk) && memzero(v, h->sv))) {
       size_t pos = chm_fz_avx2_u8(h, k);
       memcpy(chm_kat(h, pos), k, h->sk);
       memcpy(chm_vat(h, pos), v, h->sv);
@@ -614,6 +614,7 @@ void p512_hex_u32(__m512i x, char *prefix) {
 
 static inline size_t chash_resize_avx512f_u4(chash *h, size_t nmemb);
 static inline size_t chash_resize_avx512f_u8(chash *h, size_t nmemb);
+
 static inline size_t chm_fkz_avx512f_u4(chash *restrict h, void *restrict k,
                                         uint8_t *restrict ret) {
   size_t i = (h->khash)(k)&h->mod;
@@ -655,6 +656,35 @@ avxinsert:
     if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
       if (ret)
         *ret = CHM_FZ;
+      goto out;
+    }
+    i = 0;
+    goto avxinsert;
+  }
+out:
+  // printf("%zu\n", problen);
+  return i;
+}
+
+static inline size_t chm_fz_avx512f_u4(chash *restrict h, void *restrict k) {
+  size_t i = (h->khash)(k)&h->mod;
+  __m512i zeros = _mm512_setzero_si512();
+avxinsert:
+  for (; i < h->c - 8; i += 8) {
+    // printf("i = %zu\n", i);
+    __m512i a = _mm512_loadu_si512((const __m512i *)chm_kat(h, i));
+
+    uint16_t cmpz = _mm512_cmpeq_epi32_mask(a, zeros); // CPI 1
+    // printf("cmpz %16b\n", cmpz);
+    if (cmpz) {
+      // printf("[cmpz] %16b - CTZ=%4d\n", cmpz, __builtin_ctz(cmpz));
+      i += (__builtin_ctz(cmpz) >> 1);
+      goto out;
+    }
+  }
+
+  for (; i < h->c; i++) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
       goto out;
     }
     i = 0;
@@ -717,6 +747,33 @@ out:
   return i;
 }
 
+static inline size_t chm_fz_avx512f_u8(chash *restrict h, void *restrict k) {
+  size_t i = (h->khash)(k)&h->mod;
+  __m512i zeros = _mm512_setzero_si512();
+avxinsert:
+  for (; i < h->c - 4; i += 4) {
+    __m512i a = _mm512_loadu_si512((const __m512i *)chm_kat(h, i));
+    uint8_t cmpz = _mm512_cmpeq_epi64_mask(a, zeros); // CPI 1
+    // printf("cmpz %16b\n", cmpz);
+    if (cmpz) {
+      // printf("[cmpz] %16b - CTZ=%4d\n", cmpz, __builtin_ctz(cmpz));
+      i += (__builtin_ctz(cmpz) >> 1);
+      goto out;
+    }
+  }
+
+  for (; i < h->c; i++) {
+    if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
+      goto out;
+    }
+    i = 0;
+    goto avxinsert;
+  }
+out:
+  // printf("%zu\n", problen);
+  return i;
+}
+
 // TODO: this is only for enforcing the same insertion pattern, but should
 // not be included in final code
 static inline void chash_i_avx512f_u4(chash *h, void *k, void *value) {
@@ -755,13 +812,15 @@ static inline size_t chash_resize_avx512f_u4(chash *h, size_t nmemb) {
   h->n = 0;
   h->mod = nmemb - 1;
   h->c = nmemb;
-  // TODO: optimize the insertion
   for (size_t i = 0; i < oc; i++) {
-    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
-          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
-      chash_i_avx512f_u4(h, s_kat(ods, i, h->sk, h->sv),
-                         s_vat(ods, i, h->sk, h->sv));
-    continue;
+    void *k = s_kat(ods, i, h->sk, h->sv);
+    void *v = s_vat(ods, i, h->sk, h->sv);
+    if (!(memzero(k, h->sk) && memzero(v, h->sv))) {
+      size_t pos = chm_fz_avx512f_u4(h, k);
+      memcpy(chm_kat(h, pos), k, h->sk);
+      memcpy(chm_vat(h, pos), v, h->sv);
+      h->n++;
+    }
   }
   FREE(ods);
   return nmemb;
@@ -814,13 +873,15 @@ static inline size_t chash_resize_avx512f_u8(chash *h, size_t nmemb) {
   h->n = 0;
   h->mod = nmemb - 1;
   h->c = nmemb;
-  // TODO: optimize the insertion
   for (size_t i = 0; i < oc; i++) {
-    if (!(memzero(s_kat(ods, i, h->sk, h->sv), h->sk) &&
-          memzero(s_vat(ods, i, h->sk, h->sv), h->sv)))
-      chash_i_avx512f_u4(h, s_kat(ods, i, h->sk, h->sv),
-                         s_vat(ods, i, h->sk, h->sv));
-    continue;
+    void *k = s_kat(ods, i, h->sk, h->sv);
+    void *v = s_vat(ods, i, h->sk, h->sv);
+    if (!(memzero(k, h->sk) && memzero(v, h->sv))) {
+      size_t pos = chm_fz_avx512f_u8(h, k);
+      memcpy(chm_kat(h, pos), k, h->sk);
+      memcpy(chm_vat(h, pos), v, h->sv);
+      h->n++;
+    }
   }
   FREE(ods);
   return nmemb;
@@ -910,11 +971,11 @@ static inline size_t chm_fkz(chash *restrict h, void *restrict k,
 }
 static inline size_t chm_fz(chash *restrict h, void *restrict k) {
 #ifdef __AVX512F__
-  //TODO: fix with fz
+  // TODO: fix with fz
   if (h->sv == 4 && h->sk == 4)
-    return chm_fkz_avx512f_u4(h, k, retcode);
+    return chm_fz_avx512f_u4(h, k);
   if (h->sv == 8 && h->sk == 8)
-    return chm_fkz_avx512f_u8(h, k, retcode);
+    return chm_fz_avx512f_u8(h, k);
 #endif
 #ifdef __AVX2__
   if (h->sv == 4 && h->sk == 4)
@@ -1048,7 +1109,7 @@ static inline size_t chash_resizeA(chash *h, size_t nmemb) {
   h->n = 0;
   h->mod = nmemb - 1;
   h->c = nmemb;
-  //TODO: optime insertion
+  // TODO: optime insertion
   for (size_t i = 0; i < oc; i++) {
     void *k = s_kat(ods, i, h->sk, h->sv);
     void *v = s_vat(ods, i, h->sk, h->sv);
