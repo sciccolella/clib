@@ -9,7 +9,8 @@
 #define print_int_debug(hx)                                                    \
   for (size_t i = 0; i < (hx)->c; i++) {                                       \
     printf("%3zu: %10d (h:%2zu) %20u", i, *(uint32_t *)chm_kat(hx, i),         \
-           (hx->khash)(chm_kat(hx, i))&hx->mod, *(uint32_t *)chm_vat(hx, i));          \
+           (hx->khash)(chm_kat(hx, i)) & hx->mod,                              \
+           *(uint32_t *)chm_vat(hx, i));                                       \
     printf("\t%p", (uint32_t *)chm_vat(hx, i));                                \
     puts("");                                                                  \
   };
@@ -37,6 +38,8 @@ int main() {
   // MAX = 10000;
   int SEED = 21;
 
+  size_t DELMOD = 3;
+
   // -----------------------------------------
   //  KHASH
 
@@ -61,6 +64,18 @@ int main() {
   }
   printtrace_diffnow(&s, "khash  G");
 
+  // delete
+  srand(SEED);
+  s = trace_start();
+  for (size_t i = 0; i < MAX; i++) {
+    key = rand();
+    if (i % DELMOD == 0) {
+      k = kh_get(32, h, key);
+      // if (!(k == kh_end(h)))
+      kh_del(32, h, k);
+    }
+  }
+  printtrace_diffnow(&s, "khash  D");
   // -----------------------------------------
   //  CHASH LINEAR
 
@@ -83,6 +98,16 @@ int main() {
   }
   printtrace_diffnow(&s, "clib-l G");
 
+  // delete
+  srand(SEED);
+  s = trace_start();
+  for (size_t i = 0; i < MAX; i++) {
+    key = rand();
+    if (i % DELMOD == 0) {
+      chash_d(ch, vlit(key));
+    }
+  }
+  printtrace_diffnow(&s, "clib-l D");
   // -----------------------------------------
   //  CHASH AVX2
 #ifdef __AVX2__
@@ -104,6 +129,17 @@ int main() {
     assert(*get == key);
   }
   printtrace_diffnow(&s, "clib-s G");
+
+  // delete
+  srand(SEED);
+  s = trace_start();
+  for (size_t i = 0; i < MAX; i++) {
+    key = rand();
+    if (i % DELMOD == 0) {
+      chash_d(ch2, vlit(key));
+    }
+  }
+  printtrace_diffnow(&s, "clib-l D");
 #endif
 
   // -----------------------------------------
@@ -124,7 +160,7 @@ int main() {
   for (size_t i = 0; i < MAX; i++) {
     key = rand(), value = rand();
     get = (uint32_t *)chash_g_avx512f_u4(ch512, vlit(key));
-    // assert(*get == value);
+    assert(*get == value);
   }
   printtrace_diffnow(&s, "clib-f G");
 #endif
