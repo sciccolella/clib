@@ -38,6 +38,39 @@ static inline size_t hash_debug(void *x) {
   uint32_t X = *(uint32_t *)x;
   return X % 3;
 }
+
+// https://datatracker.ietf.org/doc/html/draft-eastlake-fnv
+static inline size_t fnv1a_hash32(void *x) {
+  size_t h = 0x811c9dc5;
+  unsigned char *X = (unsigned char *)x;
+  while (*X != '\0') {
+    h ^= *X;
+    h *= 0x01000193;
+    X++;
+  }
+  return h;
+}
+static inline size_t fnv1a_hash64(void *x) {
+  size_t h = 0xcbf29ce484222325;
+  unsigned char *X = (unsigned char *)x;
+  while (*X != '\0') {
+    h ^= *X;
+    h *= 0x00000100000001b3;
+    X++;
+  }
+  return h;
+}
+
+static inline size_t murmurhash64(void *x) {
+  uint64_t X = *(uint64_t *)x;
+  X ^= (X >> 33);
+  X *= 0xff51afd7ed558ccd;
+  X ^= (X >> 33);
+  X *= 0xc4ceb9fe1a85ec53;
+  X ^= (X >> 33);
+  return X;
+}
+
 static inline size_t hash_int2(void *x) {
   uint32_t X = *(uint32_t *)x;
   // X ^= (X >> 33);
@@ -52,11 +85,17 @@ static inline size_t hash_int2(void *x) {
   X ^= X >> 16;
   return X;
 }
-static inline int keql(void *a, void *b) {
+
+static inline int keql_u32(void *a, void *b) {
   uint32_t A = *(uint32_t *)a;
   uint32_t B = *(uint32_t *)b;
   // printf("[%s] A:%10u B:%10u eql?: %d\n", __func__, A, B, A == B);
   return A == B;
+}
+static inline int keql_str(void *a, void *b) {
+  char *A = (char *)a;
+  char *B = (char *)b;
+  return strcmp(A, B) == 0;
 }
 static inline size_t chash_resize(chash *h, size_t nmemb);
 static inline size_t chash_resizel(chash *h, size_t nmemb);
@@ -75,10 +114,10 @@ static inline size_t chm_fz_l(chash *restrict h, void *restrict k);
 // to make LSP happy
 // NOTE: this has to be deleted
 #ifndef __AVX2__
-#define __AVX2__
+// #define __AVX2__
 #endif
 #ifndef __AVX512F__
-#define __AVX512F__
+// #define __AVX512F__
 #endif
 
 #ifdef __AVX2__
@@ -105,7 +144,7 @@ static inline size_t chm_fz_avx512f_u8(chash *restrict h, void *restrict k);
   if (!h)
     return NULL;
   // TODO: add to initialization
-  h->keql = keql;
+  h->keql = keql_u32;
 #ifdef CHDEBUG
   h->khash = hash_debug;
 #else
@@ -192,24 +231,24 @@ static inline void chash_destroy(chash *h) {
 // TODO:document
 #define chm_kat_null(hm, i) chm_kat((hm), i) == NULL
 
-static inline int memzero(void *m, size_t s) {
-  // size_t r = 0;
-  // uint8_t *m_ = m;
-  // for (size_t i = 0; i < s; i++) {
-  //   r += m_[i];
-  // }
-  // return r == 0;
-
-  if (s == 4)
-    return 0UL == *(uint32_t *)m;
-  if (s == 8)
-    return 0ULL == *(uint64_t *)m;
-  uint8_t *m_ = m;
-  for (size_t i = 0; i < s; i++) {
-    if (m_[i])
+static inline int memzero(const void *restrict m, size_t s) {
+  register const unsigned char *M = (const unsigned char *)m;
+  while (s-- > 0) {
+    if (*M++)
       return 0;
   }
   return 1;
+
+  // if (s == 4)
+  //   return 0UL == *(uint32_t *)m;
+  // if (s == 8)
+  //   return 0ULL == *(uint64_t *)m;
+  // uint8_t *m_ = m;
+  // for (size_t i = 0; i < s; i++) {
+  //   if (m_[i])
+  //     return 0;
+  // }
+  // return 1;
 }
 
 static inline void chash_i(chash *h, void *k, void *value) {
@@ -245,7 +284,7 @@ static inline void chash_pi(chash *h, void *k, void *value) {
 
   size_t i = chm_fkz_peq(h, k, NULL);
 
-  // printf("\tinserted k:%u -> %zu\n", *(uint32_t *)k, i);
+  // printf("\tinserted k:%p -> %zu\n", k, i);
   memcpy(chm_kat(h, i), k, h->sk);
   memcpy(chm_vat(h, i), value, h->sv);
   h->n++;
@@ -909,6 +948,7 @@ static inline size_t chm_fkz_l(chash *restrict h, void *restrict k,
       return i;
     }
     if (memzero(chm_kat(h, i), h->sk) && memzero(chm_vat(h, i), h->sv)) {
+      // if (memzero2(chm_kat(h, i), h->sk + h->sv)) {
       if (retcode)
         *retcode = CHM_FZ;
       return i;
@@ -1025,14 +1065,56 @@ static inline void **chash_pg(chash *h, void *k) {
     (g) ? *g : NULL;                                                           \
   })
 
+#define CHM_MINLOAD 0.25
+
 static inline void chash_d(chash *h, void *k) {
-  size_t i = (h->khash)(k)&h->mod;
-  size_t last = i;
-  while (!(h->keql)(chm_kat(h, i), k)) {
-    i = (i + 1) & h->mod;
-    if (i == last)
-      return;
+
+  if (h->n <= (h->c * CHM_MINLOAD))
+    if (!chash_resizel(h, h->c >> 1))
+      exit(EXIT_FAILURE);
+
+  uint8_t retcode = CHM_FZ;
+  size_t i = chm_fkz_l(h, k, &retcode);
+  if (retcode == CHM_FZ)
+    return;
+
+  size_t j = (i + 1) & h->mod;
+  //  NOTE: if i arrives to last position, then j will do another round
+  //  across the array, this is not unexpected since it may be possible that
+  //  a value has been inserted considerint it as a circular array.
+  //  As it is, this cycle is "wasting" at most h->c iterations,
+  //  only if the map if full
+  while (j != i &&
+         !(memzero(chm_kat(h, j), h->sk) && memzero(chm_vat(h, j), h->sv))) {
+    size_t hj = (h->khash)(chm_kat(h, j)) & h->mod;
+    // printf("\t[i:%2zu] j:%2zu, not null\n", i, j);
+    // printf("\t\thj = %zu\n", hj);
+    // printf("\t\tj<i = %d\n", j < i);
+    // printf("\t\thj <= i = %d\n", hj <= i);
+    // printf("\t\thj>j = %d\n", hj > j);
+    if ((j < i) ^ (hj <= i) ^ (hj > j)) {
+      // printf("[%s], substuting %2zu<-%2zu\n", __func__, i, j);
+      memcpy(chm_kat(h, i), chm_kat(h, j), h->sk);
+      memcpy(chm_vat(h, i), chm_vat(h, j), h->sv);
+      i = j;
+    }
+    j = (j + 1) & h->mod;
   }
+  memset(chm_kat(h, i), 0, h->sk);
+  memset(chm_vat(h, i), 0, h->sv);
+  h->n--;
+}
+
+static inline void chash_pd(chash *h, void *k) {
+
+  if (h->n <= (h->c * CHM_MINLOAD))
+    if (!chash_resize_p(h, h->c >> 1))
+      exit(EXIT_FAILURE);
+
+  uint8_t retcode = CHM_FZ;
+  size_t i = chm_fkz_peq(h, k, &retcode);
+  if (retcode == CHM_FZ)
+    return;
 
   size_t j = (i + 1) & h->mod;
   //  NOTE: if i arrives to last position, then j will do another round
