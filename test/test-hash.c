@@ -30,14 +30,15 @@ typedef struct {
     /* printf("t%p", (uint32_t *)chm_vat(hx, i)); */                           \
     char **vi = (char **)chm_vat(hx, i);                                       \
     if (*vi)                                                                   \
-       /* printf("-> DEREF"); */ \
-       printf("-> '%s'", *vi);  \
+      /* printf("-> DEREF"); */                                                \
+      printf("-> '%s'", *vi);                                                  \
     puts("");                                                                  \
   };
 
 #define print_str_debug(hx)                                                    \
   for (size_t i = 0; i < (hx)->c; i++) {                                       \
-    printf("%3zu: %10s (h:%2zu) %20u", i, (char *)chm_kat(hx, i),              \
+    char **ki = (char **)chm_kat(hx, i);                                       \
+    printf("%3zu: %10s (h:%2zu) %20u", i, *ki ? *ki : "",                      \
            (hx->khash)(chm_kat(hx, i)) & hx->mod,                              \
            *(uint32_t *)chm_vat(hx, i));                                       \
     printf("\t%p", (uint32_t *)chm_vat(hx, i));                                \
@@ -77,11 +78,11 @@ typedef struct {
   };
 
 #define vlit(v)                                                                \
-  &(typeof((v))) { (v) }
+  &(uint32_t) { (v) }
 #define vlit64(v)                                                              \
   &(uint64_t) { (v) }
-
-#define slit(s) &(char *) {(s)} 
+#define slit(s)                                                                \
+  &(char *) { (s) }
 
 int main(int argc, char *argv[]) {
 #ifdef STRUCTEST
@@ -328,54 +329,64 @@ int main(int argc, char *argv[]) {
   hstr->khash = fnv1a_hash32;
   hstr->keql = keql_str;
 
-  char s25[] = "s25";
-  chash_pi(hstr, "s21", vlit(21));
-  chash_pi(hstr, &s25, vlit(25));
-  chash_pi(hstr, "two", vlit(2));
-  chash_pi(hstr, "AAAABBBBCCCC", vlit(27));
-  chash_pi(hstr, "zero", vlit(0));
-  chash_pi(hstr, "three", vlit(3));
+  // TODO: the hash needs fixing. Is hashing the pointer and not the string
+  printf("fnv1a_hash32: %zu\n", fnv1a_hash32(slit("fucking hell")));
+  printf("fnv1a_hash32: %zu\n", fnv1a_hash32(slit("fucking hell")));
+  printf("fnv1a_hash32: %zu\n", fnv1a_hash32(*slit("fucking hell")));
+  printf("fnv1a_hash32: %zu\n", fnv1a_hash32(*slit("fucking hell")));
+
+
+  char *s21 = malloc(25 * sizeof *s21);
+  strcat(s21, "tentyonepilots");
+  // printf("s21 = %p\n", s21);
+  // printf("&s21 = %p\n", &s21);
+  chash_pi(hstr, &s21, vlit(21));
+  chash_pi(hstr, slit("s25"), vlit(25));
+  chash_pi(hstr, slit("two"), vlit(2));
+  chash_pi(hstr, slit("twentyseven"), vlit(27));
+  chash_pi(hstr, slit("zero"), vlit(0));
+  chash_pi(hstr, slit("three"), vlit(3));
   print_str_debug(hstr);
 
   uint32_t *gotstr32;
-  gotstr32 = (uint32_t *)chash_pg(hstr, "s25");
+  gotstr32 = (uint32_t *)chash_pg(hstr, slit("s25"));
   printf("got (\"s25\") = %p -> ", gotstr32);
   if (gotstr32)
     printf("%u\n", *gotstr32);
   else
     puts("NULL");
-  gotstr32 = (uint32_t *)chash_g(hstr, "twentysix");
-  printf("got (\"twentysix\") = %p -> ", gotstr32);
+  gotstr32 = (uint32_t *)chash_pg(hstr, slit("twentysev"));
+  printf("got (\"twentysev\") = %p -> ", gotstr32);
   if (gotstr32)
     printf("%u\n", *gotstr32);
   else
     puts("NULL");
 
-  puts("DELETE \"zero\"");
-  chash_pd(hstr, "zero");
+  puts("DELETE \"two\"");
+  chash_pd(hstr, slit("two"));
   puts("REPLACE VAL(\"three\"): 3->25");
-  chash_pi(hstr, "three", vlit(25));
+  chash_pi(hstr, slit("three"), vlit(25));
   print_str_debug(hstr);
 
-  puts("------------------------------------------------");
-  puts("STRING-STRING");
-  chash *hstrstr = chash_init(sizeof(char *), sizeof(char *));
-  hstrstr->khash = fnv1a_hash32;
-  hstrstr->keql = keql_str;
-
-  char x[] = "fuck";
-  char (*p)[] = &x;
-  printf("x = %p\n", x);
-  printf("&x = %p\n", &x);
-  printf("p = %p\n", p);
-  printf("&p = %p\n", &p);
-  chash_pi(hstrstr, "s21", &p);
-  chash_pi(hstrstr, &s25, slit("twentyfive"));
-  // chash_pi(hstrstr, "two", vlit(2));
-  // chash_pi(hstrstr, "27", vlit(27));
-  // chash_pi(hstrstr, "zero", vlit(0));
-  // chash_pi(hstrstr, "three", vlit(3));
-  print_strstr_debug(hstrstr);
+  // puts("------------------------------------------------");
+  // puts("STRING-STRING");
+  // chash *hstrstr = chash_init(sizeof(char *), sizeof(char *));
+  // hstrstr->khash = fnv1a_hash32;
+  // hstrstr->keql = keql_str;
+  //
+  // char x[] = "fuck";
+  // char (*p)[] = &x;
+  // printf("x = %p\n", x);
+  // printf("&x = %p\n", &x);
+  // printf("p = %p\n", p);
+  // printf("&p = %p\n", &p);
+  // chash_pi(hstrstr, "s21", &p);
+  // chash_pi(hstrstr, &s25, slit("twentyfive"));
+  // chash_pi(hstrstr, "two", slit("s2"));
+  // chash_pi(hstrstr, "27", slit("twentyseven"));
+  // chash_pi(hstrstr, "zero", slit("000"));
+  // chash_pi(hstrstr, "three", slit("3"));
+  // print_strstr_debug(hstrstr);
 
   // uint32_t *gotstr32;
   // gotstr32 = (uint32_t *)chash_pg(hstr, "s25");
