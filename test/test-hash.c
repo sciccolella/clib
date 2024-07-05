@@ -39,8 +39,7 @@ typedef struct {
   for (size_t i = 0; i < (hx)->c; i++) {                                       \
     char **ki = (char **)chm_kat(hx, i);                                       \
     printf("%3zu: %10s (h:%2zu) %20u", i, *ki ? *ki : "",                      \
-           (hx->khash)(chm_kat(hx, i)) & hx->mod,                              \
-           *(uint32_t *)chm_vat(hx, i));                                       \
+           *ki ? (hx->khash)(ki) & hx->mod : 0, *(uint32_t *)chm_vat(hx, i));  \
     printf("\t%p", (uint32_t *)chm_vat(hx, i));                                \
     puts("");                                                                  \
   };
@@ -326,15 +325,8 @@ int main(int argc, char *argv[]) {
   puts("------------------------------------------------");
   puts("STRING");
   chash *hstr = chash_init(sizeof(char *), sizeof(uint32_t));
-  hstr->khash = fnv1a_hash32;
+  hstr->khash = hash_str;
   hstr->keql = keql_str;
-
-  // TODO: the hash needs fixing. Is hashing the pointer and not the string
-  printf("fnv1a_hash32: %zu\n", fnv1a_hash32(slit("fucking hell")));
-  printf("fnv1a_hash32: %zu\n", fnv1a_hash32(slit("fucking hell")));
-  printf("fnv1a_hash32: %zu\n", fnv1a_hash32(*slit("fucking hell")));
-  printf("fnv1a_hash32: %zu\n", fnv1a_hash32(*slit("fucking hell")));
-
 
   char *s21 = malloc(25 * sizeof *s21);
   strcat(s21, "tentyonepilots");
@@ -346,6 +338,7 @@ int main(int argc, char *argv[]) {
   chash_pi(hstr, slit("twentyseven"), vlit(27));
   chash_pi(hstr, slit("zero"), vlit(0));
   chash_pi(hstr, slit("three"), vlit(3));
+  chash_pi(hstr, slit("fucking hellss"), vlit(666));
   print_str_debug(hstr);
 
   uint32_t *gotstr32;
@@ -362,8 +355,8 @@ int main(int argc, char *argv[]) {
   else
     puts("NULL");
 
-  puts("DELETE \"two\"");
-  chash_pd(hstr, slit("two"));
+  puts("DELETE \"zero\"");
+  chash_pd(hstr, slit("zero"));
   puts("REPLACE VAL(\"three\"): 3->25");
   chash_pi(hstr, slit("three"), vlit(25));
   print_str_debug(hstr);

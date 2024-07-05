@@ -61,6 +61,10 @@ static inline size_t fnv1a_hash64(void *x) {
   return h;
 }
 
+static inline size_t hash_str(void* k) {
+  return fnv1a_hash32(*(char **)k);
+}
+
 static inline size_t murmurhash64(void *x) {
   uint64_t X = *(uint64_t *)x;
   X ^= (X >> 33);
