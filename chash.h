@@ -66,9 +66,7 @@ static inline size_t fnv1a_hash64(void *x) {
   return h;
 }
 
-static inline size_t hash_str(void* k) {
-  return fnv1a_hash32(*(char **)k);
-}
+static inline size_t hash_str(void *k) { return fnv1a_hash32(*(char **)k); }
 
 static inline size_t murmurhash64(void *x) {
   uint64_t X = *(uint64_t *)x;
@@ -120,6 +118,7 @@ static inline size_t chm_fkz_l(chash *restrict h, void *restrict k,
                                uint8_t *restrict retcode);
 static inline size_t chm_fz(chash *restrict h, void *restrict k);
 static inline size_t chm_fz_l(chash *restrict h, void *restrict k);
+
 // to make LSP happy
 // NOTE: this has to be deleted
 #ifndef __AVX2__
