@@ -1273,4 +1273,29 @@ static inline size_t chash_resize(chash *h, size_t nmemb) {
   return nmemb;
 }
 
+// serialization
+// Serialiaze Data-only All-values
+// this will save the entire datastructure with all the empty buckets
+// no computational cost, more space.
+static inline size_t chash_sda(chash *h, FILE *fout) {
+  if (fwrite(&h->c, sizeof(size_t), 1, fout) != 1)
+    return 0;
+  if (fwrite(&h->n, sizeof(size_t), 1, fout) != 1)
+    return 0;
+  return fwrite(h->ds, sizeof(unsigned char), h->c * (h->sk + h->sv), fout) ==
+         h->c * (h->sk + h->sv);
+}
+
+static inline size_t chash_dda(chash *h, FILE *fin) {
+  if (fread(&h->c, sizeof(size_t), 1, fin) != 1)
+    return 0;
+  if (fread(&h->n, sizeof(size_t), 1, fin) != 1)
+    return 0;
+  FREE(h->ds);
+  h->ds = calloc(h->c, h->sk + h->sv);
+  if (!h->ds)
+    return 0;
+  return fread(h->ds, sizeof(unsigned char), h->c * (h->sk + h->sv), fin) / (h->sk + h->sv);
+}
+
 #endif
