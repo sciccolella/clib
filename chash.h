@@ -3,7 +3,12 @@
 #ifndef CHASH_H
 #define CHASH_H
 
+#if defined(__x86_64__) || defined(__i386__)
 #include "immintrin.h"
+#endif
+// #if defined(__ARM_NEON__)
+// #include <arm_neon.h>
+// #endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
